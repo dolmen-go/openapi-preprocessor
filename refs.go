@@ -95,19 +95,21 @@ func (resolver *refResolver) resolve(link string, relativeTo *url.URL) (interfac
 		// If the can't be immediately resolved, this may be because
 		// of a $inline in the way
 
-		p := ptr[:1]
+		p := jsonptr.Pointer{}
 		for {
 			doc, err := p.In(*rdoc)
-			if err == nil {
-				break
+			if err != nil {
+				// Failed to resolve the fragment
+				return nil, nil, nil, err
 			}
 			if obj, isMap := doc.(map[string]interface{}); isMap {
 				if _, isInline := obj["$inline"]; isInline {
+					//log.Printf("%#v", obj)
 					u2 := rootURL
 					u2.Fragment = p.String()
 					var target interface{}
 
-					err := resolver.expand(doc, func(newDoc interface{}) {
+					err := resolver.expand(obj, func(newDoc interface{}) {
 						target = newDoc
 					}, &u2, nil, map[string]bool{})
 					if err != nil {
@@ -121,6 +123,7 @@ func (resolver *refResolver) resolve(link string, relativeTo *url.URL) (interfac
 				// Failed to resolve the fragment
 				return nil, nil, nil, err
 			}
+			p = ptr[:len(p)+1]
 		}
 
 		frag, _ = ptr.In(*rdoc)
@@ -285,12 +288,15 @@ func (resolver *refResolver) expand(doc interface{}, set setter, docURL *url.URL
 			return nil
 		}
 
-		delete(obj, "$inline")
 		target = deepcopy.Copy(target)
+		//log.Printf("xxx %#v", target)
 
 		switch target.(type) {
 		case map[string]interface{}:
 			for _, k := range sortedKeys(obj) {
+				if len(k) > 0 && k[0] == '$' { // skip $inline
+					continue
+				}
 				v := obj[k]
 				//log.Println(k)
 				u := *docURL
@@ -317,10 +323,13 @@ func (resolver *refResolver) expand(doc interface{}, set setter, docURL *url.URL
 	for _, k := range sortedKeys(obj) {
 		//log.Println("Key:", k)
 		u := *docURL
-		u.Fragment = u.Fragment + "/" + jsonptr.EscapeString(k)
-		resolver.expand(obj[k], func(newDoc interface{}) {
+		u.Fragment += "/" + jsonptr.EscapeString(k)
+		err := resolver.expand(obj[k], func(newDoc interface{}) {
 			obj[k] = newDoc
 		}, &u, imp, visited)
+		if err != nil {
+			return fmt.Errorf("%s: %v", &u, err)
+		}
 	}
 
 	return nil
