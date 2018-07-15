@@ -75,3 +75,7 @@ func testExpandRefs(t *testing.T, path string) {
 		t.Errorf("output doesn't match")
 	}
 }
+
+func TestInlineIndirect(t *testing.T) {
+	testExpandRefs(t, "testdata/41-inline-indirect")
+}
