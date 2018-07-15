@@ -1,7 +1,7 @@
 ---
 swagger: "2.0"
 info:
-  $inline: indirect.yml#/info
+  $inline: ../common/info.yml#/info
   version: "0.0.1"
 paths:
   /:
