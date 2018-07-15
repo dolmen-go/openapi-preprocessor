@@ -1,0 +1,10 @@
+---
+swagger: "2.0"
+info:
+  $ref: ../common/info.yml#/info
+paths:
+  /:
+    get:
+      responses:
+        404:
+          description: Not found.

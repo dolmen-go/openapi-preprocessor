@@ -1,0 +1,5 @@
+/openapi-preprocessor
+/*.yaml
+/*.yml
+/*.json
+/*.pl

@@ -1,0 +1,18 @@
+{
+  "info": {
+    "title": "Test",
+    "version": "0.0.0"
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "responses": {
+          "404": {
+            "description": "Not found."
+          }
+        }
+      }
+    }
+  },
+  "swagger": "2.0"
+}
