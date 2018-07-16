@@ -10,6 +10,16 @@ import (
 )
 
 func TestExpandRefs(t *testing.T) {
+	runAllExpandRefs(t)
+}
+
+func BenchmarkExpandRefs(b *testing.B) {
+	runAllExpandRefs(b)
+}
+
+func runAllExpandRefs(t interface {
+	testing.TB
+}) {
 	dir, err := os.Open("testdata")
 	if err != nil {
 		log.Fatal(err)
@@ -32,9 +42,14 @@ func TestExpandRefs(t *testing.T) {
 		if name[0] < '0' || name[0] > '9' {
 			continue
 		}
-		t.Run(name, func(t *testing.T) {
+		switch t := t.(type) {
+		case *testing.T:
+			t.Run(name, func(t *testing.T) {
+				runExpandRefs(t, "testdata/"+name)
+			})
+		case *testing.B:
 			runExpandRefs(t, "testdata/"+name)
-		})
+		}
 	}
 }
 
@@ -62,20 +77,33 @@ func runExpandRefs(t testing.TB, path string) {
 		t.Fatalf("%s/result.json: %v", path, err)
 	}
 
-	var out interface{}
-	err = processFile(inputPath, func(result interface{}) error {
-		out = result
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	switch tb := t.(type) {
+	case *testing.T:
+		var out interface{}
+		err = processFile(inputPath, func(result interface{}) error {
+			out = result
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	if !reflect.DeepEqual(out, expected) {
-		t.Errorf("output doesn't match")
+		if !reflect.DeepEqual(out, expected) {
+			t.Errorf("output doesn't match")
+		}
+	case *testing.B:
+		for i := 0; i < tb.N; i++ {
+			_ = processFile(inputPath, func(interface{}) error {
+				return nil
+			})
+		}
 	}
 }
 
 func TestInlineIndirect(t *testing.T) {
 	runExpandRefs(t, "testdata/41-inline-indirect")
+}
+
+func Benchmark43(b *testing.B) {
+	runExpandRefs(b, "testdata/43-inline-overrides-deep")
 }
