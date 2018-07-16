@@ -1,0 +1,9 @@
+---
+swagger: "2.0"
+info:
+  $merge: ../common/info.yml#/info
+  version: "0.0.1"
+paths:
+  $merge:
+  - ../common/root-404.yml#/paths
+  - ../common/path-hello.yml#/paths

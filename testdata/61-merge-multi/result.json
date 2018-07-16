@@ -1,0 +1,37 @@
+{
+  "info": {
+    "title": "Test",
+    "version": "0.0.1"
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "responses": {
+          "404": {
+            "description": "Not found."
+          }
+        }
+      }
+    },
+    "/hello": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "who",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Say hello",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  "swagger": "2.0"
+}

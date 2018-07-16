@@ -226,6 +226,9 @@ func (resolver *refResolver) expand(doc interface{}, set setter, docURL *url.URL
 				// Reverse order
 				links[len(links)-1-i] = l
 			}
+			if len(links) == 1 && len(obj) == 1 {
+				return fmt.Errorf("%s: merging with nothing? (tip: use $inline)", docURL)
+			}
 		default:
 			return fmt.Errorf("%s: must be a string or array of strings", docURL)
 		}

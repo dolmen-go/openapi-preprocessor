@@ -1,0 +1,13 @@
+---
+paths:
+  /hello:
+    get:
+      parameters:
+      - name: who
+        in: query
+        type: string
+      responses:
+        200:
+          description: Say hello
+          schema:
+            type: string
