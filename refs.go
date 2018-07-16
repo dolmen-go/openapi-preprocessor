@@ -42,11 +42,15 @@ func visitRefs(root interface{}, ptr jsonptr.Pointer, visitor func(jsonptr.Point
 }
 
 type refResolver struct {
-	rootURL string
-	docs    map[string]*interface{}
+	rootURL  string
+	docs     map[string]*interface{}
+	visited  map[string]bool
+	inject   map[string]string
+	inlining bool
 }
 
 func (resolver *refResolver) resolve(link string, relativeTo *url.URL) (interface{}, setter, *url.URL, error) {
+	//log.Println(link, relativeTo)
 	u, err := url.Parse(link)
 	if err != nil {
 		return nil, nil, nil, err
@@ -55,19 +59,25 @@ func (resolver *refResolver) resolve(link string, relativeTo *url.URL) (interfac
 	if !u.IsAbs() {
 		u = relativeTo.ResolveReference(u)
 	}
+	//log.Println("=>", u)
 
 	if *u == *relativeTo {
 		return nil, nil, nil, errors.New("circular link")
 	}
 
-	rootURL := *u
-	rootURL.Fragment = ""
-	rootURLStr := rootURL.String()
+	var rootURLStr string
+	if u.Fragment != "" {
+		rootURL := *u
+		rootURL.Fragment = ""
+		rootURLStr = rootURL.String()
+	} else {
+		rootURLStr = u.String()
+	}
 
 	rdoc, loaded := resolver.docs[rootURLStr]
 	if !loaded {
 		//log.Println("Loading", &rootURL)
-		doc, err := loadURL(&rootURL)
+		doc, err := loadURL(u)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -80,7 +90,7 @@ func (resolver *refResolver) resolve(link string, relativeTo *url.URL) (interfac
 	if u.Fragment == "" {
 		return *rdoc, func(newDoc interface{}) {
 			*rdoc = newDoc
-		}, &rootURL, nil
+		}, u, nil
 	}
 
 	ptr, err := jsonptr.Parse(u.Fragment)
@@ -105,23 +115,20 @@ func (resolver *refResolver) resolve(link string, relativeTo *url.URL) (interfac
 			if obj, isMap := doc.(map[string]interface{}); isMap {
 				if _, isInline := obj["$inline"]; isInline {
 					//log.Printf("%#v", obj)
-					u2 := rootURL
+					u2 := *u
 					u2.Fragment = p.String()
-					var target interface{}
 
 					err := resolver.expand(obj, func(newDoc interface{}) {
-						target = newDoc
-					}, &u2, nil, map[string]bool{})
+						p.Set(rdoc, newDoc)
+					}, &u2)
 					if err != nil {
 						return nil, nil, nil, err
 					}
 
-					p.Set(rdoc, target)
 				}
 			}
 			if len(p) == len(ptr) {
-				// Failed to resolve the fragment
-				return nil, nil, nil, err
+				break
 			}
 			p = ptr[:len(p)+1]
 		}
@@ -131,16 +138,21 @@ func (resolver *refResolver) resolve(link string, relativeTo *url.URL) (interfac
 
 	return frag, func(newDoc interface{}) {
 		ptr.Set(rdoc, newDoc)
-	}, &rootURL, nil
+	}, u, nil
 }
 
-func (resolver *refResolver) expand(doc interface{}, set setter, docURL *url.URL, imp map[string]string, visited map[string]bool) error {
+func (resolver *refResolver) expand(doc interface{}, set setter, docURL *url.URL) error {
+	if docURL == nil {
+		panic("nil URL")
+	}
 	u := docURL.String()
 	//log.Println(u, docURL.Fragment)
-	if visited[u] {
+	if resolver.visited[u] {
 		return nil
 	}
-	visited[u] = true
+	if !resolver.inlining {
+		resolver.visited[u] = true
+	}
 
 	if doc, isSlice := doc.([]interface{}); isSlice {
 		u2 := *docURL
@@ -150,7 +162,7 @@ func (resolver *refResolver) expand(doc interface{}, set setter, docURL *url.URL
 				u2.Fragment = fmt.Sprintf("%s/%d", docURL.Fragment, i)
 				err := resolver.expand(v, func(newDoc interface{}) {
 					doc[i] = newDoc
-				}, &u2, imp, visited)
+				}, &u2)
 				if err != nil {
 					return err
 				}
@@ -173,29 +185,21 @@ func (resolver *refResolver) expand(doc interface{}, set setter, docURL *url.URL
 			return fmt.Errorf("%s: $ref must be alone (use $merge instead)", docURL)
 		}
 
-		doc, set, u, err := resolver.resolve(link, docURL)
-		if err != nil {
-			return err
-		}
-		//log.Printf("%#v", doc)
-		resolver.expand(doc, func(newDoc interface{}) {
-			doc = newDoc
-			set(newDoc)
-		}, u, imp, visited)
+		_, u, err := resolver.resolveAndExpand(link, docURL)
 		if err != nil {
 			return err
 		}
 
-		if imp != nil {
+		if resolver.inject != nil {
 			fragment := docURL.Fragment
 			u2 := *u
 			u2.Fragment = ""
 			u2str := u2.String()
 			if u2str != resolver.rootURL {
-				if src := imp[fragment]; src != "" && src != u2str {
+				if src := resolver.inject[fragment]; src != "" && src != u2str {
 					return fmt.Errorf("import fragment %s from both %s and %s", link, src, u2str)
 				}
-				imp[fragment] = u2str
+				resolver.inject[fragment] = u2str
 			}
 		}
 
@@ -227,25 +231,18 @@ func (resolver *refResolver) expand(doc interface{}, set setter, docURL *url.URL
 		delete(obj, "$merge")
 
 		s := docURL.String()
-		delete(visited, s)
+		delete(resolver.visited, s)
 		err := resolver.expand(doc, func(newDoc interface{}) {
 			doc = newDoc
 			set(newDoc)
-		}, docURL, imp, visited)
-		visited[s] = true
+		}, docURL)
+		resolver.visited[s] = true
 		if err != nil {
 			return err
 		}
 
 		for i, link := range links {
-			target, set, u, err := resolver.resolve(link, docURL)
-			if err != nil {
-				return err
-			}
-			err = resolver.expand(doc, func(newDoc interface{}) {
-				target = newDoc
-				set(newDoc)
-			}, u, imp, visited)
+			target, _, err := resolver.resolveAndExpand(link, docURL)
 			if err != nil {
 				return err
 			}
@@ -271,52 +268,49 @@ func (resolver *refResolver) expand(doc interface{}, set setter, docURL *url.URL
 
 	if link, isInline := obj["$inline"]; isInline {
 
-		target, setTarget, u, err := resolver.resolve(link.(string), docURL)
-		if err != nil {
-			return err
-		}
-		err = resolver.expand(doc, func(newDoc interface{}) {
-			target = newDoc
-			setTarget(newDoc)
-		}, u, imp, visited)
-		if err != nil {
-			return err
-		}
+		inlining := resolver.inlining
+		resolver.inlining = true
 
-		if len(obj) == 1 {
-			set(target)
-			return nil
+		target, _, err := resolver.resolveAndExpand(link.(string), docURL)
+		if err != nil {
+			return err
 		}
+		resolver.inlining = inlining
 
 		target = deepcopy.Copy(target)
+		set(target)
+
 		//log.Printf("xxx %#v", target)
 
-		switch target.(type) {
-		case map[string]interface{}:
-			for _, k := range sortedKeys(obj) {
-				if len(k) > 0 && k[0] == '$' { // skip $inline
-					continue
+		if len(obj) > 1 {
+			switch target.(type) {
+			case map[string]interface{}:
+				for _, k := range sortedKeys(obj) {
+					if len(k) > 0 && k[0] == '$' { // skip $inline
+						continue
+					}
+					v := obj[k]
+					//log.Println(k)
+					u := *docURL
+					u.Fragment = u.Fragment + "/" + jsonptr.EscapeString(k)
+					err = resolver.expand(v, func(newDoc interface{}) {
+						v = newDoc
+					}, &u)
+					if err != nil {
+						return err
+					}
+					if err := jsonptr.Set(&target, "/"+k, v); err != nil {
+						return fmt.Errorf("%s/%s: %v", docURL, k, err)
+					}
 				}
-				v := obj[k]
-				//log.Println(k)
-				u := *docURL
-				u.Fragment = u.Fragment + "/" + jsonptr.EscapeString(k)
-				resolver.expand(v, func(newDoc interface{}) {
-					v = newDoc
-				}, &u, imp, visited)
-				if err := jsonptr.Set(&target, "/"+k, v); err != nil {
-					return fmt.Errorf("%s/%s: %v", docURL, k, err)
-				}
+			case []interface{}:
+				// TODO
+				return fmt.Errorf("%s: inlining of array not yet implemented", docURL)
+			default:
+				return fmt.Errorf("%s: inlined scalar value can't be patched", docURL)
 			}
-		case []interface{}:
-			// TODO
-			return fmt.Errorf("%s: inlining of array not yet implemented", docURL)
-		default:
-			return fmt.Errorf("%s: inlined scalar value can't be patched", docURL)
 		}
 
-		set(target)
-		// doc = target
 		return nil
 	}
 
@@ -326,13 +320,28 @@ func (resolver *refResolver) expand(doc interface{}, set setter, docURL *url.URL
 		u.Fragment += "/" + jsonptr.EscapeString(k)
 		err := resolver.expand(obj[k], func(newDoc interface{}) {
 			obj[k] = newDoc
-		}, &u, imp, visited)
+		}, &u)
 		if err != nil {
 			return fmt.Errorf("%s: %v", &u, err)
 		}
 	}
 
 	return nil
+}
+
+func (resolver *refResolver) resolveAndExpand(link string, relativeTo *url.URL) (interface{}, *url.URL, error) {
+	target, setTarget, u, err := resolver.resolve(link, relativeTo)
+	if err != nil {
+		return nil, nil, err
+	}
+	err = resolver.expand(target, func(newDoc interface{}) {
+		target = newDoc
+		setTarget(newDoc)
+	}, u)
+	if err != nil {
+		return nil, nil, err
+	}
+	return target, u, err
 }
 
 func ExpandRefs(rdoc *interface{}, docURL *url.URL) error {
@@ -346,13 +355,13 @@ func ExpandRefs(rdoc *interface{}, docURL *url.URL) error {
 		docs: map[string]*interface{}{
 			docURLstr: rdoc,
 		},
+		inject:  make(map[string]string),
+		visited: make(map[string]bool),
 	}
-
-	toInject := make(map[string]string)
 
 	err := resolver.expand(*rdoc, func(newDoc interface{}) {
 		*rdoc = newDoc
-	}, docURL, toInject, make(map[string]bool))
+	}, docURL)
 
 	if err != nil {
 		return err
@@ -360,7 +369,7 @@ func ExpandRefs(rdoc *interface{}, docURL *url.URL) error {
 
 	// Inject content in external documents pointed by $ref.
 	// The inject path is the same as the path in the source doc.
-	for ptr, u := range toInject {
+	for ptr, u := range resolver.inject {
 		// log.Println(ptr, u)
 
 		if _, err := jsonptr.Get(*rdoc, ptr); err != nil {
