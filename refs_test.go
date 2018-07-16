@@ -33,12 +33,12 @@ func TestExpandRefs(t *testing.T) {
 			continue
 		}
 		t.Run(name, func(t *testing.T) {
-			testExpandRefs(t, "testdata/"+name)
+			runExpandRefs(t, "testdata/"+name)
 		})
 	}
 }
 
-func testExpandRefs(t *testing.T, path string) {
+func runExpandRefs(t testing.TB, path string) {
 	var inputPath string
 	for _, ext := range []string{".yml", ".yaml", ".json"} {
 		p := path + "/input" + ext
@@ -77,5 +77,5 @@ func testExpandRefs(t *testing.T, path string) {
 }
 
 func TestInlineIndirect(t *testing.T) {
-	testExpandRefs(t, "testdata/41-inline-indirect")
+	runExpandRefs(t, "testdata/41-inline-indirect")
 }
