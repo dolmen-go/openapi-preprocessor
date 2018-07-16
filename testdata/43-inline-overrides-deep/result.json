@@ -1,0 +1,22 @@
+{
+  "info": {
+    "title": "Test",
+    "license": {
+      "name": "Apache 2.0",
+      "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+    },
+    "version": "0.0.1"
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "responses": {
+          "404": {
+            "description": "Not found."
+          }
+        }
+      }
+    }
+  },
+  "swagger": "2.0"
+}

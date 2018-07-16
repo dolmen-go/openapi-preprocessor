@@ -1,0 +1,22 @@
+---
+swagger: "2.0"
+info:
+  $inline: ../common/info.yml#/info
+  # 1. Inject license from external content
+  # 2. Patch license/name to "Apache 2.000"
+  # 3. Patch license/name again from the external content (to verify our cache of the external content has not been altered)
+  # 4. Patch license/url
+  # 5. Patch version
+  license:
+    $inline: ../common/license-apache2.json
+    name: Apache 2.000
+  license/name:
+    $inline: ../common/license-apache2.json#/name
+  license/url: "http://www.apache.org/licenses/LICENSE-2.0.html"
+  version: "0.0.1"
+paths:
+  /:
+    get:
+      responses:
+        404:
+          description: Not found.
