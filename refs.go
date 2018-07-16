@@ -223,7 +223,8 @@ func (resolver *refResolver) expand(doc interface{}, set setter, docURL *url.URL
 				if !isString {
 					return fmt.Errorf("%s/%d: must be a string", docURL, i)
 				}
-				links[i] = l
+				// Reverse order
+				links[len(links)-1-i] = l
 			}
 		default:
 			return fmt.Errorf("%s: must be a string or array of strings", docURL)
@@ -241,6 +242,9 @@ func (resolver *refResolver) expand(doc interface{}, set setter, docURL *url.URL
 			return err
 		}
 
+		// overrides := make(map[string]string)
+		// fill with (key => docURL+"/"+jsonptr.EscapeString(key))
+
 		for i, link := range links {
 			target, _, err := resolver.resolveAndExpand(link, docURL)
 			if err != nil {
@@ -256,10 +260,14 @@ func (resolver *refResolver) expand(doc interface{}, set setter, docURL *url.URL
 			}
 			for k, v := range objTarget {
 				if _, exists := obj[k]; exists {
-					// TODO warn
+					// TODO warn about overrides if verbose
+					// if o, overriden := overrides[k]; overriden {
+					//   log.Println("%s/%s overrides %s/%s", docURL, jsonptr.EscapeString(k), o, jsonptr.EscapeString(k))
+					// }
 					continue
 				}
 				obj[k] = v
+				// overrides[k] = link
 			}
 		}
 
