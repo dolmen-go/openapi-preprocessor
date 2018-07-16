@@ -294,12 +294,13 @@ func (resolver *refResolver) expand(doc interface{}, set setter, docURL *url.URL
 		//log.Printf("xxx %#v", target)
 
 		if len(obj) > 1 {
-			switch target.(type) {
+			switch targetX := target.(type) {
 			case map[string]interface{}:
 				// To forbid raw '$' (because we have '$inline'), but still enable it
 				// in pointers, we use "~2" as a replacement as it is not a valid JSON Pointer
 				// sequence.
 				replDollar := strings.NewReplacer("~2", "$")
+				var prefixes []string
 				for _, k := range sortedKeys(obj) {
 					if len(k) > 0 && k[0] == '$' { // skip $inline
 						continue
@@ -314,8 +315,33 @@ func (resolver *refResolver) expand(doc interface{}, set setter, docURL *url.URL
 					if err != nil {
 						return err
 					}
-					if err := jsonptr.Set(&target, "/"+replDollar.Replace(k), v); err != nil {
-						return fmt.Errorf("%s/%s: %v", docURL, k, err)
+					ptr := "/" + replDollar.Replace(k)
+					if !strings.ContainsAny(k, "/") {
+						prop, err := jsonptr.UnescapeString(ptr[1:])
+						if err != nil {
+							return fmt.Errorf("%s: %q: %v", docURL, k, err)
+						}
+						targetX[prop] = v
+						prefixes = append(prefixes[:0], ptr)
+					} else {
+						// If patching a previous patch, we want to preserve the source
+						// Find the previous longest prefix of ptr, if any, and clone the tree
+						i := len(prefixes) - 1
+						for i > 0 {
+							p := prefixes[i]
+							if strings.HasPrefix(ptr, p+"/") {
+								p = p[:len(p)-1]
+								t, _ := jsonptr.Get(target, p)
+								t = deepcopy.Copy(t)
+								jsonptr.Set(&target, p, t)
+								break
+							}
+							i--
+						}
+						prefixes = append(prefixes[:i+1], ptr) // clear longer prefixes and append this one
+						if err := jsonptr.Set(&target, ptr, v); err != nil {
+							return fmt.Errorf("%s/%s: %v", docURL, k, err)
+						}
 					}
 				}
 			case []interface{}:
