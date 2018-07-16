@@ -1,0 +1,14 @@
+---
+swagger: "2.0"
+info:
+  $inline: ../common/info.yml#/info
+  license: {}
+  license/name: "Apache 2.0"
+  license/url: "http://www.apache.org/licenses/LICENSE-2.0.html"
+  version: "0.0.1"
+paths:
+  /:
+    get:
+      responses:
+        404:
+          description: Not found.
