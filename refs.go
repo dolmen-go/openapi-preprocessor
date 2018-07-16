@@ -176,183 +176,17 @@ func (resolver *refResolver) expand(doc interface{}, set setter, docURL *url.URL
 	}
 
 	if ref, isRef := obj["$ref"]; isRef {
-		//log.Printf("$ref: %s => %s", docURL, ref)
-		link, isString := ref.(string)
-		if !isString {
-			return fmt.Errorf("%s: $ref must be a string", docURL)
-		}
-		if len(obj) > 1 {
-			return fmt.Errorf("%s: $ref must be alone (use $merge instead)", docURL)
-		}
-
-		_, u, err := resolver.resolveAndExpand(link, docURL)
-		if err != nil {
-			return err
-		}
-
-		if resolver.inject != nil {
-			fragment := docURL.Fragment
-			u2 := *u
-			u2.Fragment = ""
-			u2str := u2.String()
-			if u2str != resolver.rootURL {
-				if src := resolver.inject[fragment]; src != "" && src != u2str {
-					return fmt.Errorf("import fragment %s from both %s and %s", link, src, u2str)
-				}
-				resolver.inject[fragment] = u2str
-			}
-		}
-
-		return nil
+		return resolver.expandTagRef(obj, set, docURL, ref)
 	}
 
 	// An extension to build an object from mixed local data and
 	// imported data
-	if link, isMerge := obj["$merge"]; isMerge {
-		var links []string
-		switch link := link.(type) {
-		case string:
-			if len(obj) == 1 {
-				return fmt.Errorf("%s: merging with nothing?", docURL)
-			}
-			links = []string{link}
-		case []interface{}:
-			links = make([]string, len(link))
-			for i, v := range link {
-				l, isString := v.(string)
-				if !isString {
-					return fmt.Errorf("%s/%d: must be a string", docURL, i)
-				}
-				// Reverse order
-				links[len(links)-1-i] = l
-			}
-			if len(links) == 1 && len(obj) == 1 {
-				return fmt.Errorf("%s: merging with nothing? (tip: use $inline)", docURL)
-			}
-		default:
-			return fmt.Errorf("%s: must be a string or array of strings", docURL)
-		}
-		delete(obj, "$merge")
-
-		s := docURL.String()
-		delete(resolver.visited, s)
-		err := resolver.expand(doc, func(newDoc interface{}) {
-			doc = newDoc
-			set(newDoc)
-		}, docURL)
-		resolver.visited[s] = true
-		if err != nil {
-			return err
-		}
-
-		// overrides := make(map[string]string)
-		// fill with (key => docURL+"/"+jsonptr.EscapeString(key))
-
-		for i, link := range links {
-			target, _, err := resolver.resolveAndExpand(link, docURL)
-			if err != nil {
-				return err
-			}
-
-			objTarget, isObj := target.(map[string]interface{})
-			if !isObj {
-				if len(links) == 1 {
-					return fmt.Errorf("%s/$merge: link must point to object", docURL)
-				}
-				return fmt.Errorf("%s/$merge/%d: link must point to object", docURL, i)
-			}
-			for k, v := range objTarget {
-				if _, exists := obj[k]; exists {
-					// TODO warn about overrides if verbose
-					// if o, overriden := overrides[k]; overriden {
-					//   log.Println("%s/%s overrides %s/%s", docURL, jsonptr.EscapeString(k), o, jsonptr.EscapeString(k))
-					// }
-					continue
-				}
-				obj[k] = v
-				// overrides[k] = link
-			}
-		}
-
-		return nil
+	if refs, isMerge := obj["$merge"]; isMerge {
+		return resolver.expandTagMerge(obj, set, docURL, refs)
 	}
 
-	if link, isInline := obj["$inline"]; isInline {
-
-		inlining := resolver.inlining
-		resolver.inlining = true
-
-		target, _, err := resolver.resolveAndExpand(link.(string), docURL)
-		if err != nil {
-			return err
-		}
-		resolver.inlining = inlining
-
-		target = deepcopy.Copy(target)
-		set(target)
-
-		//log.Printf("xxx %#v", target)
-
-		if len(obj) > 1 {
-			switch targetX := target.(type) {
-			case map[string]interface{}:
-				// To forbid raw '$' (because we have '$inline'), but still enable it
-				// in pointers, we use "~2" as a replacement as it is not a valid JSON Pointer
-				// sequence.
-				replDollar := strings.NewReplacer("~2", "$")
-				var prefixes []string
-				for _, k := range sortedKeys(obj) {
-					if len(k) > 0 && k[0] == '$' { // skip $inline
-						continue
-					}
-					v := obj[k]
-					//log.Println(k)
-					u := *docURL
-					u.Fragment = u.Fragment + "/" + jsonptr.EscapeString(k)
-					err = resolver.expand(v, func(newDoc interface{}) {
-						v = newDoc
-					}, &u)
-					if err != nil {
-						return err
-					}
-					ptr := "/" + replDollar.Replace(k)
-					if !strings.ContainsAny(k, "/") {
-						prop, err := jsonptr.UnescapeString(ptr[1:])
-						if err != nil {
-							return fmt.Errorf("%s: %q: %v", docURL, k, err)
-						}
-						targetX[prop] = v
-						prefixes = append(prefixes[:0], ptr)
-					} else {
-						// If patching a previous patch, we want to preserve the source
-						// Find the previous longest prefix of ptr, if any, and clone the tree
-						i := len(prefixes) - 1
-						for i > 0 {
-							p := prefixes[i]
-							if strings.HasPrefix(ptr, p+"/") {
-								p = p[:len(p)-1]
-								t, _ := jsonptr.Get(target, p)
-								t = deepcopy.Copy(t)
-								jsonptr.Set(&target, p, t)
-								break
-							}
-							i--
-						}
-						prefixes = append(prefixes[:i+1], ptr) // clear longer prefixes and append this one
-						if err := jsonptr.Set(&target, ptr, v); err != nil {
-							return fmt.Errorf("%s/%s: %v", docURL, k, err)
-						}
-					}
-				}
-			case []interface{}:
-				// TODO
-				return fmt.Errorf("%s: inlining of array not yet implemented", docURL)
-			default:
-				return fmt.Errorf("%s: inlined scalar value can't be patched", docURL)
-			}
-		}
-
-		return nil
+	if ref, isInline := obj["$inline"]; isInline {
+		return resolver.expandTagInline(obj, set, docURL, ref)
 	}
 
 	for _, k := range sortedKeys(obj) {
@@ -364,6 +198,192 @@ func (resolver *refResolver) expand(doc interface{}, set setter, docURL *url.URL
 		}, &u)
 		if err != nil {
 			return fmt.Errorf("%s: %v", &u, err)
+		}
+	}
+
+	return nil
+}
+
+// expandTagRef expands (follows) a $ref link.
+func (resolver *refResolver) expandTagRef(obj map[string]interface{}, set setter, docURL *url.URL, ref interface{}) error {
+	//log.Printf("$ref: %s => %s", docURL, ref)
+	link, isString := ref.(string)
+	if !isString {
+		return fmt.Errorf("%s/$ref: must be a string", docURL)
+	}
+
+	if len(obj) > 1 {
+		return fmt.Errorf("%s: $ref must be alone (tip: use $merge instead)", docURL)
+	}
+
+	_, u, err := resolver.resolveAndExpand(link, docURL)
+	if err != nil {
+		return err
+	}
+
+	if resolver.inject != nil {
+		fragment := docURL.Fragment
+		u2 := *u
+		u2.Fragment = ""
+		u2str := u2.String()
+		if u2str != resolver.rootURL {
+			if src := resolver.inject[fragment]; src != "" && src != u2str {
+				return fmt.Errorf("import fragment %s from both %s and %s", link, src, u2str)
+			}
+			resolver.inject[fragment] = u2str
+		}
+	}
+
+	return nil
+}
+
+// expandTagMerge expands a $merge object.
+func (resolver *refResolver) expandTagMerge(obj map[string]interface{}, set setter, docURL *url.URL, refs interface{}) error {
+	var links []string
+	switch refs := refs.(type) {
+	case string:
+		if len(obj) == 1 {
+			return fmt.Errorf("%s: merging with nothing?", docURL)
+		}
+		links = []string{refs}
+	case []interface{}:
+		links = make([]string, len(refs))
+		for i, v := range refs {
+			l, isString := v.(string)
+			if !isString {
+				return fmt.Errorf("%s/%d: must be a string", docURL, i)
+			}
+			// Reverse order
+			links[len(links)-1-i] = l
+		}
+		if len(links) == 1 && len(obj) == 1 {
+			return fmt.Errorf("%s: merging with nothing? (tip: use $inline)", docURL)
+		}
+	default:
+		return fmt.Errorf("%s: must be a string or array of strings", docURL)
+	}
+	delete(obj, "$merge")
+
+	s := docURL.String()
+	delete(resolver.visited, s)
+	err := resolver.expand(obj, func(newDoc interface{}) {
+		obj = newDoc.(map[string]interface{})
+		set(newDoc)
+	}, docURL)
+	resolver.visited[s] = true
+	if err != nil {
+		return err
+	}
+
+	// overrides := make(map[string]string)
+	// fill with (key => docURL+"/"+jsonptr.EscapeString(key))
+
+	for i, link := range links {
+		target, _, err := resolver.resolveAndExpand(link, docURL)
+		if err != nil {
+			return err
+		}
+
+		objTarget, isObj := target.(map[string]interface{})
+		if !isObj {
+			if len(links) == 1 {
+				return fmt.Errorf("%s/$merge: link must point to object", docURL)
+			}
+			return fmt.Errorf("%s/$merge/%d: link must point to object", docURL, i)
+		}
+		for k, v := range objTarget {
+			if _, exists := obj[k]; exists {
+				// TODO warn about overrides if verbose
+				// if o, overriden := overrides[k]; overriden {
+				//   log.Println("%s/%s overrides %s/%s", docURL, jsonptr.EscapeString(k), o, jsonptr.EscapeString(k))
+				// }
+				continue
+			}
+			obj[k] = v
+			// overrides[k] = link
+		}
+	}
+
+	return nil
+}
+
+// expandTagInline expands a $inline object.
+func (resolver *refResolver) expandTagInline(obj map[string]interface{}, set setter, docURL *url.URL, ref interface{}) error {
+	link, isString := ref.(string)
+	if !isString {
+		return fmt.Errorf("%s/$inline: must be a string", docURL)
+	}
+
+	inlining := resolver.inlining
+	resolver.inlining = true
+
+	target, _, err := resolver.resolveAndExpand(link, docURL)
+	if err != nil {
+		return err
+	}
+	resolver.inlining = inlining
+
+	target = deepcopy.Copy(target)
+	set(target)
+
+	//log.Printf("xxx %#v", target)
+
+	if len(obj) > 1 {
+		switch targetX := target.(type) {
+		case map[string]interface{}:
+			// To forbid raw '$' (because we have '$inline'), but still enable it
+			// in pointers, we use "~2" as a replacement as it is not a valid JSON Pointer
+			// sequence.
+			replDollar := strings.NewReplacer("~2", "$")
+			var prefixes []string
+			for _, k := range sortedKeys(obj) {
+				if len(k) > 0 && k[0] == '$' { // skip $inline
+					continue
+				}
+				v := obj[k]
+				//log.Println(k)
+				u := *docURL
+				u.Fragment = u.Fragment + "/" + jsonptr.EscapeString(k)
+				err = resolver.expand(v, func(newDoc interface{}) {
+					v = newDoc
+				}, &u)
+				if err != nil {
+					return err
+				}
+				ptr := "/" + replDollar.Replace(k)
+				if !strings.ContainsAny(k, "/") {
+					prop, err := jsonptr.UnescapeString(ptr[1:])
+					if err != nil {
+						return fmt.Errorf("%s: %q: %v", docURL, k, err)
+					}
+					targetX[prop] = v
+					prefixes = append(prefixes[:0], ptr)
+				} else {
+					// If patching a previous patch, we want to preserve the source
+					// Find the previous longest prefix of ptr, if any, and clone the tree
+					i := len(prefixes) - 1
+					for i > 0 {
+						p := prefixes[i]
+						if strings.HasPrefix(ptr, p+"/") {
+							p = p[:len(p)-1]
+							t, _ := jsonptr.Get(target, p)
+							t = deepcopy.Copy(t)
+							jsonptr.Set(&target, p, t)
+							break
+						}
+						i--
+					}
+					prefixes = append(prefixes[:i+1], ptr) // clear longer prefixes and append this one
+					if err := jsonptr.Set(&target, ptr, v); err != nil {
+						return fmt.Errorf("%s/%s: %v", docURL, k, err)
+					}
+				}
+			}
+		case []interface{}:
+			// TODO
+			return fmt.Errorf("%s: inlining of array not yet implemented", docURL)
+		default:
+			return fmt.Errorf("%s: inlined scalar value can't be patched", docURL)
 		}
 	}
 
