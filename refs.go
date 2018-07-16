@@ -95,7 +95,7 @@ func (resolver *refResolver) resolve(link string, relativeTo *url.URL) (interfac
 
 	ptr, err := jsonptr.Parse(u.Fragment)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, fmt.Errorf("%q: %v", u.Fragment, err)
 	}
 
 	// FIXME we could reduce the number of evals of JSON pointers...
