@@ -293,6 +293,10 @@ func (resolver *refResolver) expand(doc interface{}, set setter, docURL *url.URL
 		if len(obj) > 1 {
 			switch target.(type) {
 			case map[string]interface{}:
+				// To forbid raw '$' (because we have '$inline'), but still enable it
+				// in pointers, we use "~2" as a replacement as it is not a valid JSON Pointer
+				// sequence.
+				replDollar := strings.NewReplacer("~2", "$")
 				for _, k := range sortedKeys(obj) {
 					if len(k) > 0 && k[0] == '$' { // skip $inline
 						continue
@@ -307,7 +311,7 @@ func (resolver *refResolver) expand(doc interface{}, set setter, docURL *url.URL
 					if err != nil {
 						return err
 					}
-					if err := jsonptr.Set(&target, "/"+k, v); err != nil {
+					if err := jsonptr.Set(&target, "/"+replDollar.Replace(k), v); err != nil {
 						return fmt.Errorf("%s/%s: %v", docURL, k, err)
 					}
 				}
