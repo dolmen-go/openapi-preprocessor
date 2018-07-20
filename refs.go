@@ -432,19 +432,12 @@ func (resolver *refResolver) expandTagInline(obj map[string]interface{}, set set
 	return nil
 }
 
-func (resolver *refResolver) resolveAndExpand(link string, relativeTo *loc) (*node, error) {
-	n, err := resolver.resolve(link, relativeTo)
-	if err != nil {
-		return n, err
+func (resolver *refResolver) resolveAndExpand(link string, relativeTo *loc) (n *node, err error) {
+	n, err = resolver.resolve(link, relativeTo)
+	if err == nil {
+		err = resolver.expand(*n)
 	}
-	err = resolver.expand(node{n.data, func(newDoc interface{}) {
-		n.data = newDoc
-		n.set(newDoc)
-	}, n.loc})
-	if err != nil {
-		return n, err
-	}
-	return n, err
+	return
 }
 
 func ExpandRefs(rdoc *interface{}, docURL *url.URL) error {
