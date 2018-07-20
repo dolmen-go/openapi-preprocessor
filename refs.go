@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"path/filepath"
@@ -107,30 +106,35 @@ type refResolver struct {
 
 func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error) {
 	// log.Println(link, relativeTo)
-	u, err := url.Parse(link)
-	if err != nil {
-		return nil, err
+	var targetLoc loc
+	var ptr jsonptr.Pointer
+	var err error
+
+	if i := strings.IndexByte(link, '#'); i >= 0 {
+		targetLoc.Path = link[:i]
+		targetLoc.Ptr = link[i+1:]
+		ptr, err = jsonptr.Parse(targetLoc.Ptr)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %q %v", relativeTo, targetLoc.Ptr, err)
+		}
+	} else {
+		targetLoc.Path = link
 	}
 
-	if u.IsAbs() {
-		return nil, errors.New("absolute URLs are not supported")
-	}
-	u = relativeTo.URL().ResolveReference(u)
-
-	ptr, err := jsonptr.Parse(u.Fragment)
-	if err != nil {
-		return nil, fmt.Errorf("%q: %v", u.Fragment, err)
+	if len(targetLoc.Path) > 0 {
+		targetLoc.Path, err = url.PathUnescape(targetLoc.Path)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %v", relativeTo, err)
+		}
+		targetLoc.Path = resolvePath(relativeTo.Path, targetLoc.Path)
+	} else {
+		targetLoc.Path = relativeTo.Path
 	}
 
 	// log.Println("=>", u)
 
-	targetLoc := loc{
-		Path: u.Path,
-		Ptr:  u.Fragment,
-	}
-
 	if targetLoc.Path == relativeTo.Path && strings.HasPrefix(relativeTo.Ptr, targetLoc.Ptr+"/") {
-		return nil, errors.New("circular link")
+		return nil, fmt.Errorf("%s: circular link", relativeTo)
 	}
 
 	rdoc, loaded := resolver.docs[targetLoc.Path]
@@ -249,7 +253,7 @@ func (resolver *refResolver) expand(n node) error {
 
 // expandTagRef expands (follows) a $ref link.
 func (resolver *refResolver) expandTagRef(obj map[string]interface{}, set setter, l *loc, ref interface{}) error {
-	//log.Printf("$ref: %s => %s", docURL, ref)
+	//log.Printf("$ref: %s => %s", l, ref)
 	link, isString := ref.(string)
 	if !isString {
 		return fmt.Errorf("%s/$ref: must be a string", l)
@@ -316,7 +320,7 @@ func (resolver *refResolver) expandTagMerge(obj map[string]interface{}, set sett
 	}
 
 	// overrides := make(map[string]string)
-	// fill with (key => docURL+"/"+jsonptr.EscapeString(key))
+	// fill with (key => loc.Property(key))
 
 	for i, link := range links {
 		target, err := resolver.resolveAndExpand(link, l)
@@ -335,7 +339,7 @@ func (resolver *refResolver) expandTagMerge(obj map[string]interface{}, set sett
 			if _, exists := obj[k]; exists {
 				// TODO warn about overrides if verbose
 				// if o, overriden := overrides[k]; overriden {
-				//   log.Println("%s/%s overrides %s/%s", docURL, jsonptr.EscapeString(k), o, jsonptr.EscapeString(k))
+				//   log.Println("%s overrides %s", l.Property(k), target.loc.Property(k))
 				// }
 				continue
 			}
