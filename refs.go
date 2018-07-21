@@ -151,8 +151,8 @@ func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error
 	}
 
 	if targetLoc.Ptr == "" {
-		return &node{*rdoc, func(newDoc interface{}) {
-			*rdoc = newDoc
+		return &node{*rdoc, func(data interface{}) {
+			*rdoc = data
 		}, targetLoc}, nil
 	}
 
@@ -173,8 +173,8 @@ func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error
 			if obj, isMap := doc.(map[string]interface{}); isMap {
 				if _, isInline := obj["$inline"]; isInline {
 					//log.Printf("%#v", obj)
-					err := resolver.expand(node{obj, func(newDoc interface{}) {
-						p.Set(rdoc, newDoc)
+					err := resolver.expand(node{obj, func(data interface{}) {
+						p.Set(rdoc, data)
 					}, loc{Path: targetLoc.Path, Ptr: p.String()}})
 					if err != nil {
 						return nil, err
@@ -191,8 +191,8 @@ func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error
 		frag, _ = ptr.In(*rdoc)
 	}
 
-	return &node{frag, func(newDoc interface{}) {
-		ptr.Set(rdoc, newDoc)
+	return &node{frag, func(data interface{}) {
+		ptr.Set(rdoc, data)
 	}, targetLoc}, nil
 }
 
@@ -209,8 +209,8 @@ func (resolver *refResolver) expand(n node) error {
 		for i, v := range doc {
 			switch v.(type) {
 			case []interface{}, map[string]interface{}:
-				err := resolver.expand(node{v, func(newDoc interface{}) {
-					doc[i] = newDoc
+				err := resolver.expand(node{v, func(data interface{}) {
+					doc[i] = data
 				}, n.loc.Index(i)})
 				if err != nil {
 					return err
@@ -240,8 +240,8 @@ func (resolver *refResolver) expand(n node) error {
 
 	for _, k := range sortedKeys(obj) {
 		//log.Println("Key:", k)
-		err := resolver.expand(node{obj[k], func(newDoc interface{}) {
-			obj[k] = newDoc
+		err := resolver.expand(node{obj[k], func(data interface{}) {
+			obj[k] = data
 		}, n.loc.Property(k)})
 		if err != nil {
 			return fmt.Errorf("%s: %v", n.loc, err)
@@ -310,9 +310,9 @@ func (resolver *refResolver) expandTagMerge(obj map[string]interface{}, set sett
 	delete(obj, "$merge")
 
 	delete(resolver.visited, *l)
-	err := resolver.expand(node{obj, func(newDoc interface{}) {
-		obj = newDoc.(map[string]interface{})
-		set(newDoc)
+	err := resolver.expand(node{obj, func(data interface{}) {
+		obj = data.(map[string]interface{})
+		set(data)
 	}, *l})
 	resolver.visited[*l] = true
 	if err != nil {
@@ -368,7 +368,9 @@ func (resolver *refResolver) expandTagInline(obj map[string]interface{}, set set
 	resolver.inlining = inlining
 
 	target.data = deepcopy.Copy(target.data)
+	// Replace the original node (obj) with the copy of the target
 	set(target.data)
+	// obj is now disconnected from the original tree
 
 	//log.Printf("xxx %#v", target.data)
 
@@ -386,8 +388,8 @@ func (resolver *refResolver) expandTagInline(obj map[string]interface{}, set set
 				}
 				v := obj[k]
 				//log.Println(k)
-				err = resolver.expand(node{v, func(newDoc interface{}) {
-					v = newDoc
+				err = resolver.expand(node{v, func(data interface{}) {
+					v = data
 				}, l.Property(k)})
 				if err != nil {
 					return err
@@ -455,8 +457,8 @@ func ExpandRefs(rdoc *interface{}, docURL *url.URL) error {
 		visited: make(map[loc]bool),
 	}
 
-	err := resolver.expand(node{*rdoc, func(newDoc interface{}) {
-		*rdoc = newDoc
+	err := resolver.expand(node{*rdoc, func(data interface{}) {
+		*rdoc = data
 	}, loc{Path: docURL.Path}})
 
 	if err != nil {
