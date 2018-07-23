@@ -472,14 +472,19 @@ func ExpandRefs(rdoc *interface{}, docURL *url.URL) error {
 	// Second step:
 	// Inject content from external documents pointed by $ref.
 	// The inject path is the same as the path in the source doc.
-	for ptr, u := range resolver.inject {
-		// log.Println(ptr, u)
+	for ptr, sourcePath := range resolver.inject {
+		// log.Println(ptr, sourcePath)
 
 		if _, err := jsonptr.Get(*rdoc, ptr); err != nil {
-			return fmt.Errorf("%s: content replaced from %s", ptr, u)
+			return fmt.Errorf("%s: content replaced from %s", ptr, sourcePath)
 		}
-		target, _ := jsonptr.Get(*resolver.docs[u], ptr)
-		_ = jsonptr.Set(rdoc, ptr, target)
+		target, err := jsonptr.Get(*resolver.docs[sourcePath], ptr)
+		if err != nil {
+			return fmt.Errorf("%s#%s has disappeared after replacement of $inline and $merge", sourcePath, ptr)
+		}
+		if err = jsonptr.Set(rdoc, ptr, target); err != nil {
+			return fmt.Errorf("%s#%s: %v", sourcePath, ptr, err)
+		}
 	}
 
 	// Third step:
