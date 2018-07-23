@@ -49,8 +49,8 @@ func processFile(pth string, encode func(interface{}) error) error {
 	tmp = spec
 
 	err = ExpandRefs(&tmp, &url.URL{
-		Scheme: "file",
-		Path:   filepath.ToSlash(pth),
+		//Scheme: "file",
+		Path: filepath.ToSlash(pth),
 	})
 	if err != nil {
 		return err

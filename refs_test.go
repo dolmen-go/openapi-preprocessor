@@ -9,6 +9,24 @@ import (
 	"testing"
 )
 
+func assertString(t *testing.T, got, expected string) bool {
+	if got == expected {
+		return true
+	}
+	t.Errorf("got: %q, expected: %q", got, expected)
+	return false
+}
+
+func TestLoc(t *testing.T) {
+	t.Logf(".URL().String()")
+	assertString(t, (&loc{Path: "x.yml"}).URL().String(), "x.yml")
+	assertString(t, (&loc{Path: "/tmp/x.yml", Ptr: "/info"}).URL().String(), "file:///tmp/x.yml#/info")
+
+	t.Logf(".String()")
+	assertString(t, (&loc{Path: "x.yml"}).String(), "x.yml")
+	assertString(t, (&loc{Path: "/tmp/x.yml", Ptr: "/info"}).String(), "/tmp/x.yml#/info")
+}
+
 func TestExpandRefs(t *testing.T) {
 	runAllExpandRefs(t)
 }
