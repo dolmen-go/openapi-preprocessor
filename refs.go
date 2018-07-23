@@ -97,8 +97,8 @@ type node struct {
 }
 
 type refResolver struct {
-	rootURL  string
-	docs     map[string]*interface{}
+	rootPath string
+	docs     map[string]*interface{} // path -> rdoc
 	visited  map[loc]bool
 	inject   map[string]string
 	inlining bool
@@ -269,7 +269,7 @@ func (resolver *refResolver) expandTagRef(obj map[string]interface{}, set setter
 	}
 
 	if resolver.inject != nil {
-		if target.loc.Path != resolver.rootURL {
+		if target.loc.Path != resolver.rootPath {
 			if src := resolver.inject[l.Ptr]; src != "" && src != target.loc.Path {
 				// TODO we should also save l in resolver.inject to be able to signal the location
 				// of $ref that provoke the injection
@@ -447,25 +447,30 @@ func ExpandRefs(rdoc *interface{}, docURL *url.URL) error {
 		panic("URL fragment unexpected for initial document")
 	}
 
-	docURLstr := docURL.String()
+	path := docURL.Path
 	resolver := refResolver{
-		rootURL: docURL.String(),
+		rootPath: path,
 		docs: map[string]*interface{}{
-			docURLstr: rdoc,
+			path: rdoc,
 		},
 		inject:  make(map[string]string),
 		visited: make(map[loc]bool),
 	}
 
+	// First step:
+	// - load referenced documents
+	// - collect $ref locations pointing to external documents
+	// - replace $inline, $merge
 	err := resolver.expand(node{*rdoc, func(data interface{}) {
 		*rdoc = data
-	}, loc{Path: docURL.Path}})
+	}, loc{Path: path}})
 
 	if err != nil {
 		return err
 	}
 
-	// Inject content in external documents pointed by $ref.
+	// Second step:
+	// Inject content from external documents pointed by $ref.
 	// The inject path is the same as the path in the source doc.
 	for ptr, u := range resolver.inject {
 		// log.Println(ptr, u)
@@ -477,7 +482,9 @@ func ExpandRefs(rdoc *interface{}, docURL *url.URL) error {
 		_ = jsonptr.Set(rdoc, ptr, target)
 	}
 
-	// As some $ref pointed to external documents we have to fix them
+	// Third step:
+	// As some $ref pointed to external documents we have to fix them to make the references
+	// local.
 	if len(resolver.docs) > 1 {
 		_ = visitRefs(*rdoc, nil, func(ptr jsonptr.Pointer, ref string) (string, error) {
 			i := strings.IndexByte(ref, '#')
