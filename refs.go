@@ -308,7 +308,7 @@ func (resolver *refResolver) expandTagRef(obj map[string]interface{}, set setter
 			if src := resolver.inject[l.Ptr]; src != "" && src != target.loc.Path {
 				// TODO we should also save l in resolver.inject to be able to signal the location
 				// of $ref that provoke the injection
-				return fmt.Errorf("import fragment %s from both %s and %s", link, src, target.loc.Path)
+				return resolver.Errorf(l, "import fragment %q is imported from %q and %q", link, src, target.loc.Path)
 			}
 			resolver.inject[l.Ptr] = target.loc.Path
 		}
