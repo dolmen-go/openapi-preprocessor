@@ -150,7 +150,7 @@ func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error
 		targetLoc.Ptr = link[i+1:]
 		ptr, err = jsonptr.Parse(targetLoc.Ptr)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %q %v", relativeTo, targetLoc.Ptr, err)
+			return nil, resolver.Errorf(relativeTo, "%q %v", targetLoc.Ptr, err)
 		}
 	} else {
 		targetLoc.Path = link
@@ -159,7 +159,7 @@ func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error
 	if len(targetLoc.Path) > 0 {
 		targetLoc.Path, err = url.PathUnescape(targetLoc.Path)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %v", relativeTo, err)
+			return nil, resolver.Error(relativeTo, err)
 		}
 		targetLoc.Path = resolvePath(relativeTo.Path, targetLoc.Path)
 	} else {
@@ -169,7 +169,7 @@ func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error
 	// log.Println("=>", u)
 
 	if targetLoc.Path == relativeTo.Path && strings.HasPrefix(relativeTo.Ptr, targetLoc.Ptr+"/") {
-		return nil, fmt.Errorf("%s: circular link", relativeTo)
+		return nil, resolver.Errorf(relativeTo, "circular link")
 	}
 
 	rdoc, loaded := resolver.docs[targetLoc.Path]
@@ -279,7 +279,7 @@ func (resolver *refResolver) expand(n node) error {
 			obj[k] = data
 		}, n.loc.Property(k)})
 		if err != nil {
-			return fmt.Errorf("%s: %v", n.loc, err)
+			return err
 		}
 	}
 
@@ -291,11 +291,11 @@ func (resolver *refResolver) expandTagRef(obj map[string]interface{}, set setter
 	//log.Printf("$ref: %s => %s", l, ref)
 	link, isString := ref.(string)
 	if !isString {
-		return fmt.Errorf("%s/$ref: must be a string", l)
+		return resolver.Errorf(&loc{l.Path, l.Ptr + "/$ref"}, "must be a string")
 	}
 
 	if len(obj) > 1 {
-		return fmt.Errorf("%s: $ref must be alone (tip: use $merge instead)", l)
+		return resolver.Errorf(l, "$ref must be alone (tip: use $merge instead)")
 	}
 
 	target, err := resolver.resolveAndExpand(link, l)
@@ -323,24 +323,24 @@ func (resolver *refResolver) expandTagMerge(obj map[string]interface{}, set sett
 	switch refs := refs.(type) {
 	case string:
 		if len(obj) == 1 {
-			return fmt.Errorf("%s: merging with nothing?", l)
+			return resolver.Errorf(l, "merging with nothing?")
 		}
 		links = []string{refs}
 	case []interface{}:
 		links = make([]string, len(refs))
 		for i, v := range refs {
-			l, isString := v.(string)
+			lnk, isString := v.(string)
 			if !isString {
-				return fmt.Errorf("%s/%d: must be a string", l, i)
+				return resolver.Errorf(&loc{l.Path, fmt.Sprintf("%s/%d", l.Ptr, i)}, "must be a string")
 			}
 			// Reverse order
-			links[len(links)-1-i] = l
+			links[len(links)-1-i] = lnk
 		}
 		if len(links) == 1 && len(obj) == 1 {
-			return fmt.Errorf("%s: merging with nothing? (tip: use $inline)", l)
+			return resolver.Errorf(l, "merging with nothing? (tip: use $inline)")
 		}
 	default:
-		return fmt.Errorf("%s: must be a string or array of strings", l)
+		return resolver.Errorf(&loc{l.Path, l.Ptr + "/$merge"}, "must be a string or array of strings")
 	}
 	delete(obj, "$merge")
 
@@ -366,9 +366,9 @@ func (resolver *refResolver) expandTagMerge(obj map[string]interface{}, set sett
 		objTarget, isObj := target.data.(map[string]interface{})
 		if !isObj {
 			if len(links) == 1 {
-				return fmt.Errorf("%s/$merge: link must point to object", l)
+				return resolver.Errorf(&loc{l.Path, l.Ptr + "/$merge"}, "link must point to object")
 			}
-			return fmt.Errorf("%s/$merge/%d: link must point to object", l, i)
+			return resolver.Errorf(&loc{l.Path, fmt.Sprintf("%s/$merge/%d", l.Ptr, i)}, "link must point to object")
 		}
 		for k, v := range objTarget {
 			if _, exists := obj[k]; exists {
@@ -390,7 +390,7 @@ func (resolver *refResolver) expandTagMerge(obj map[string]interface{}, set sett
 func (resolver *refResolver) expandTagInline(obj map[string]interface{}, set setter, l *loc, ref interface{}) error {
 	link, isString := ref.(string)
 	if !isString {
-		return fmt.Errorf("%s/$inline: must be a string", l)
+		return resolver.Errorf(&loc{l.Path, l.Ptr + "/$inline"}, "must be a string")
 	}
 
 	inlining := resolver.inlining
@@ -433,7 +433,7 @@ func (resolver *refResolver) expandTagInline(obj map[string]interface{}, set set
 				if !strings.ContainsAny(k, "/") {
 					prop, err := jsonptr.UnescapeString(ptr[1:])
 					if err != nil {
-						return fmt.Errorf("%s: %q: %v", l, k, err)
+						return resolver.Errorf(l, "%q: %v", k, err)
 					}
 					targetX[prop] = v
 					prefixes = append(prefixes[:0], ptr)
@@ -454,15 +454,15 @@ func (resolver *refResolver) expandTagInline(obj map[string]interface{}, set set
 					}
 					prefixes = append(prefixes[:i+1], ptr) // clear longer prefixes and append this one
 					if err := jsonptr.Set(&target.data, ptr, v); err != nil {
-						return fmt.Errorf("%s/%s: %v", l, k, err)
+						return resolver.Error(&loc{l.Path, l.Ptr + "/" + k}, err)
 					}
 				}
 			}
 		case []interface{}:
 			// TODO
-			return fmt.Errorf("%s: inlining of array not yet implemented", l)
+			return resolver.Errorf(l, "inlining of array not yet implemented")
 		default:
-			return fmt.Errorf("%s: inlined scalar value can't be patched", l)
+			return resolver.Errorf(l, "inlined scalar value can't be patched")
 		}
 	}
 
