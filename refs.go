@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -88,6 +90,16 @@ func (l *loc) Index(i int) loc {
 	}
 }
 
+func (l *loc) Rel(basePath string) loc {
+	// FIXME do not use FS dependent paths
+	rel, err := filepath.Rel(filepath.FromSlash(basePath), filepath.FromSlash(l.Path))
+	if err != nil {
+		return *l
+	}
+
+	return loc{rel, l.Ptr}
+}
+
 type setter func(interface{})
 
 type node struct {
@@ -102,6 +114,29 @@ type refResolver struct {
 	visited  map[loc]bool
 	inject   map[string]string
 	inlining bool
+}
+
+type errExpand struct {
+	loc loc
+	err error
+}
+
+func (e *errExpand) Error() string {
+	return e.loc.String() + ": " + e.err.Error()
+}
+
+func (resolver *refResolver) Error(loc *loc, err error) error {
+	return &errExpand{loc.Rel(resolver.rootPath), err}
+}
+
+func (resolver *refResolver) Errorf(loc *loc, msg string, args ...interface{}) error {
+	var err error
+	if len(args) == 0 {
+		err = errors.New(msg)
+	} else {
+		err = fmt.Errorf(msg, args...)
+	}
+	return resolver.Error(loc, err)
 }
 
 func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error) {
@@ -447,7 +482,7 @@ func ExpandRefs(rdoc *interface{}, docURL *url.URL) error {
 		panic("URL fragment unexpected for initial document")
 	}
 
-	path := docURL.Path
+	path := path.Clean(docURL.Path)
 	resolver := refResolver{
 		rootPath: path,
 		docs: map[string]*interface{}{
