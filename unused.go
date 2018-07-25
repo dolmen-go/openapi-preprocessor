@@ -22,10 +22,9 @@ func removeEmptyObject(rdoc *interface{}, pointer string) {
 	}
 	key := ptr[len(ptr)-1]
 	obj, isObj := parent[key].(map[string]interface{})
-	if !isObj || len(obj) > 0 {
-		return
+	if isObj && len(obj) == 0 {
+		delete(parent, key)
 	}
-	delete(obj, key)
 }
 
 func CleanUnused(rdoc *interface{}) error {
