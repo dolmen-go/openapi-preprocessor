@@ -150,18 +150,18 @@ func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error
 		targetLoc.Ptr = link[i+1:]
 		ptr, err = jsonptr.Parse(targetLoc.Ptr)
 		if err != nil {
-			return nil, resolver.Errorf(relativeTo, "%q %v", targetLoc.Ptr, err)
+			return nil, fmt.Errorf("%q: %v", targetLoc.Ptr, err)
 		}
 	} else {
 		targetLoc.Path = link
 	}
 
 	if len(targetLoc.Path) > 0 {
-		targetLoc.Path, err = url.PathUnescape(targetLoc.Path)
+		tmpPath, err := url.PathUnescape(targetLoc.Path)
 		if err != nil {
-			return nil, resolver.Error(relativeTo, err)
+			return nil, fmt.Errorf("%q: %v", targetLoc.Path, err)
 		}
-		targetLoc.Path = resolvePath(relativeTo.Path, targetLoc.Path)
+		targetLoc.Path = resolvePath(relativeTo.Path, tmpPath)
 	} else {
 		targetLoc.Path = relativeTo.Path
 	}
@@ -169,7 +169,7 @@ func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error
 	// log.Println("=>", u)
 
 	if targetLoc.Path == relativeTo.Path && strings.HasPrefix(relativeTo.Ptr, targetLoc.Ptr+"/") {
-		return nil, resolver.Errorf(relativeTo, "circular link")
+		return nil, errors.New("circular link")
 	}
 
 	rdoc, loaded := resolver.docs[targetLoc.Path]
@@ -177,7 +177,7 @@ func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error
 		//log.Println("Loading", &targetLoc)
 		doc, err := loadFile(filepath.FromSlash(targetLoc.Path))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("can't load %q: %v", targetLoc.Path, err)
 		}
 		var itf interface{}
 		itf = doc
@@ -200,6 +200,7 @@ func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error
 
 		p := jsonptr.Pointer{}
 		for {
+			// log.Println(p)
 			doc, err := p.In(*rdoc)
 			if err != nil {
 				// Failed to resolve the fragment
@@ -471,7 +472,11 @@ func (resolver *refResolver) expandTagInline(obj map[string]interface{}, set set
 
 func (resolver *refResolver) resolveAndExpand(link string, relativeTo *loc) (n *node, err error) {
 	n, err = resolver.resolve(link, relativeTo)
-	if err == nil {
+	if err != nil {
+		if _, isExpandErr := err.(*errExpand); !isExpandErr {
+			err = resolver.Error(relativeTo, err)
+		}
+	} else {
 		err = resolver.expand(*n)
 	}
 	return
