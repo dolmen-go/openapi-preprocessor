@@ -17,26 +17,42 @@ import (
 
 // visitRefs visits $ref and allows to change them.
 func visitRefs(root interface{}, ptr jsonptr.Pointer, visitor func(jsonptr.Pointer, string) (string, error)) (err error) {
+	//log.Println(ptr)
 	switch root := root.(type) {
 	case map[string]interface{}:
-		ptr = ptr.Copy()
-		for k, v := range root {
+		if len(root) == 0 {
+			break
+		}
+		ptr.Grow(1)
+		for _, k := range sortedKeys(root) {
 			ptr.Property(k)
 			if k == "$ref" {
-				if str, isString := v.(string); isString {
+				if str, isString := root[k].(string); isString {
 					root[k], err = visitor(ptr, str)
 					if err != nil {
 						return
 					}
 				}
+			} else {
+				err = visitRefs(root[k], ptr, visitor)
+				if err != nil {
+					break
+				}
 			}
 			ptr.Up()
 		}
-	case []string:
-		ptr = ptr.Copy()
+	case []interface{}:
+		if len(root) == 0 {
+			break
+		}
+		ptr.Grow(1)
 		for i, v := range root {
 			ptr.Index(i)
-			visitRefs(v, ptr, visitor)
+			// log.Println(ptr)
+			err = visitRefs(v, ptr, visitor)
+			if err != nil {
+				break
+			}
 			ptr.Up()
 		}
 	}
