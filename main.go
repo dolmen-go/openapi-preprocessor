@@ -56,5 +56,14 @@ func processFile(pth string, encode func(interface{}) error) error {
 		return err
 	}
 
+	for _, transform := range []func(*interface{}) error{
+		CleanUnused,
+	} {
+		err = transform(&tmp)
+		if err != nil {
+			return err
+		}
+	}
+
 	return encode(tmp)
 }
