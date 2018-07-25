@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -109,6 +110,7 @@ type node struct {
 }
 
 type refResolver struct {
+	basePath string // absolute path to make errors relative to
 	rootPath string
 	docs     map[string]*interface{} // path -> rdoc
 	visited  map[loc]bool
@@ -126,7 +128,7 @@ func (e *errExpand) Error() string {
 }
 
 func (resolver *refResolver) Error(loc *loc, err error) error {
-	return &errExpand{loc.Rel(resolver.rootPath), err}
+	return &errExpand{loc.Rel(resolver.basePath), err}
 }
 
 func (resolver *refResolver) Errorf(loc *loc, msg string, args ...interface{}) error {
@@ -487,8 +489,11 @@ func ExpandRefs(rdoc *interface{}, docURL *url.URL) error {
 		panic("URL fragment unexpected for initial document")
 	}
 
+	cwd, _ := os.Getwd()
+
 	path := path.Clean(docURL.Path)
 	resolver := refResolver{
+		basePath: filepath.ToSlash(cwd),
 		rootPath: path,
 		docs: map[string]*interface{}{
 			path: rdoc,
