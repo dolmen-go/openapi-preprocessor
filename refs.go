@@ -1,8 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
+	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -88,6 +91,16 @@ func (l *loc) Index(i int) loc {
 	}
 }
 
+func (l *loc) Rel(basePath string) loc {
+	// FIXME do not use FS dependent paths
+	rel, err := filepath.Rel(filepath.FromSlash(basePath), filepath.FromSlash(l.Path))
+	if err != nil {
+		return *l
+	}
+
+	return loc{rel, l.Ptr}
+}
+
 type setter func(interface{})
 
 type node struct {
@@ -97,11 +110,35 @@ type node struct {
 }
 
 type refResolver struct {
+	basePath string // absolute path to make errors relative to
 	rootPath string
 	docs     map[string]*interface{} // path -> rdoc
 	visited  map[loc]bool
 	inject   map[string]string
 	inlining bool
+}
+
+type errExpand struct {
+	loc loc
+	err error
+}
+
+func (e *errExpand) Error() string {
+	return e.loc.String() + ": " + e.err.Error()
+}
+
+func (resolver *refResolver) Error(loc *loc, err error) error {
+	return &errExpand{loc.Rel(resolver.basePath), err}
+}
+
+func (resolver *refResolver) Errorf(loc *loc, msg string, args ...interface{}) error {
+	var err error
+	if len(args) == 0 {
+		err = errors.New(msg)
+	} else {
+		err = fmt.Errorf(msg, args...)
+	}
+	return resolver.Error(loc, err)
 }
 
 func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error) {
@@ -115,18 +152,18 @@ func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error
 		targetLoc.Ptr = link[i+1:]
 		ptr, err = jsonptr.Parse(targetLoc.Ptr)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %q %v", relativeTo, targetLoc.Ptr, err)
+			return nil, fmt.Errorf("%q: %v", targetLoc.Ptr, err)
 		}
 	} else {
 		targetLoc.Path = link
 	}
 
 	if len(targetLoc.Path) > 0 {
-		targetLoc.Path, err = url.PathUnescape(targetLoc.Path)
+		tmpPath, err := url.PathUnescape(targetLoc.Path)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %v", relativeTo, err)
+			return nil, fmt.Errorf("%q: %v", targetLoc.Path, err)
 		}
-		targetLoc.Path = resolvePath(relativeTo.Path, targetLoc.Path)
+		targetLoc.Path = resolvePath(relativeTo.Path, tmpPath)
 	} else {
 		targetLoc.Path = relativeTo.Path
 	}
@@ -134,7 +171,7 @@ func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error
 	// log.Println("=>", u)
 
 	if targetLoc.Path == relativeTo.Path && strings.HasPrefix(relativeTo.Ptr, targetLoc.Ptr+"/") {
-		return nil, fmt.Errorf("%s: circular link", relativeTo)
+		return nil, errors.New("circular link")
 	}
 
 	rdoc, loaded := resolver.docs[targetLoc.Path]
@@ -142,7 +179,7 @@ func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error
 		//log.Println("Loading", &targetLoc)
 		doc, err := loadFile(filepath.FromSlash(targetLoc.Path))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("can't load %q: %v", targetLoc.Path, err)
 		}
 		var itf interface{}
 		itf = doc
@@ -165,6 +202,7 @@ func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error
 
 		p := jsonptr.Pointer{}
 		for {
+			// log.Println(p)
 			doc, err := p.In(*rdoc)
 			if err != nil {
 				// Failed to resolve the fragment
@@ -244,7 +282,7 @@ func (resolver *refResolver) expand(n node) error {
 			obj[k] = data
 		}, n.loc.Property(k)})
 		if err != nil {
-			return fmt.Errorf("%s: %v", n.loc, err)
+			return err
 		}
 	}
 
@@ -256,16 +294,22 @@ func (resolver *refResolver) expandTagRef(obj map[string]interface{}, set setter
 	//log.Printf("$ref: %s => %s", l, ref)
 	link, isString := ref.(string)
 	if !isString {
-		return fmt.Errorf("%s/$ref: must be a string", l)
+		return resolver.Errorf(&loc{l.Path, l.Ptr + "/$ref"}, "must be a string")
 	}
 
 	if len(obj) > 1 {
-		return fmt.Errorf("%s: $ref must be alone (tip: use $merge instead)", l)
+		return resolver.Errorf(l, "$ref must be alone (tip: use $merge instead)")
 	}
 
 	target, err := resolver.resolveAndExpand(link, l)
 	if err != nil {
 		return err
+	}
+	if strings.HasPrefix(l.Ptr+"/", target.loc.Ptr+"/") {
+		if target.loc.Ptr == "" {
+			return resolver.Errorf(l, "injection of %q at root will create a circular link (tip: use $inline)", target.loc.Path)
+		}
+		return resolver.Errorf(l, "injection of %q at path %q will create a circular link (tip: use $inline)", target.loc, target.loc.Ptr)
 	}
 
 	if resolver.inject != nil {
@@ -273,7 +317,7 @@ func (resolver *refResolver) expandTagRef(obj map[string]interface{}, set setter
 			if src := resolver.inject[l.Ptr]; src != "" && src != target.loc.Path {
 				// TODO we should also save l in resolver.inject to be able to signal the location
 				// of $ref that provoke the injection
-				return fmt.Errorf("import fragment %s from both %s and %s", link, src, target.loc.Path)
+				return resolver.Errorf(l, "import fragment %q is imported from %q and %q", link, src, target.loc.Path)
 			}
 			resolver.inject[l.Ptr] = target.loc.Path
 		}
@@ -288,24 +332,24 @@ func (resolver *refResolver) expandTagMerge(obj map[string]interface{}, set sett
 	switch refs := refs.(type) {
 	case string:
 		if len(obj) == 1 {
-			return fmt.Errorf("%s: merging with nothing?", l)
+			return resolver.Errorf(l, "merging with nothing?")
 		}
 		links = []string{refs}
 	case []interface{}:
 		links = make([]string, len(refs))
 		for i, v := range refs {
-			l, isString := v.(string)
+			lnk, isString := v.(string)
 			if !isString {
-				return fmt.Errorf("%s/%d: must be a string", l, i)
+				return resolver.Errorf(&loc{l.Path, fmt.Sprintf("%s/%d", l.Ptr, i)}, "must be a string")
 			}
 			// Reverse order
-			links[len(links)-1-i] = l
+			links[len(links)-1-i] = lnk
 		}
 		if len(links) == 1 && len(obj) == 1 {
-			return fmt.Errorf("%s: merging with nothing? (tip: use $inline)", l)
+			return resolver.Errorf(l, "merging with nothing? (tip: use $inline)")
 		}
 	default:
-		return fmt.Errorf("%s: must be a string or array of strings", l)
+		return resolver.Errorf(&loc{l.Path, l.Ptr + "/$merge"}, "must be a string or array of strings")
 	}
 	delete(obj, "$merge")
 
@@ -331,9 +375,9 @@ func (resolver *refResolver) expandTagMerge(obj map[string]interface{}, set sett
 		objTarget, isObj := target.data.(map[string]interface{})
 		if !isObj {
 			if len(links) == 1 {
-				return fmt.Errorf("%s/$merge: link must point to object", l)
+				return resolver.Errorf(&loc{l.Path, l.Ptr + "/$merge"}, "link must point to object")
 			}
-			return fmt.Errorf("%s/$merge/%d: link must point to object", l, i)
+			return resolver.Errorf(&loc{l.Path, fmt.Sprintf("%s/$merge/%d", l.Ptr, i)}, "link must point to object")
 		}
 		for k, v := range objTarget {
 			if _, exists := obj[k]; exists {
@@ -355,7 +399,7 @@ func (resolver *refResolver) expandTagMerge(obj map[string]interface{}, set sett
 func (resolver *refResolver) expandTagInline(obj map[string]interface{}, set setter, l *loc, ref interface{}) error {
 	link, isString := ref.(string)
 	if !isString {
-		return fmt.Errorf("%s/$inline: must be a string", l)
+		return resolver.Errorf(&loc{l.Path, l.Ptr + "/$inline"}, "must be a string")
 	}
 
 	inlining := resolver.inlining
@@ -398,7 +442,7 @@ func (resolver *refResolver) expandTagInline(obj map[string]interface{}, set set
 				if !strings.ContainsAny(k, "/") {
 					prop, err := jsonptr.UnescapeString(ptr[1:])
 					if err != nil {
-						return fmt.Errorf("%s: %q: %v", l, k, err)
+						return resolver.Errorf(l, "%q: %v", k, err)
 					}
 					targetX[prop] = v
 					prefixes = append(prefixes[:0], ptr)
@@ -419,15 +463,15 @@ func (resolver *refResolver) expandTagInline(obj map[string]interface{}, set set
 					}
 					prefixes = append(prefixes[:i+1], ptr) // clear longer prefixes and append this one
 					if err := jsonptr.Set(&target.data, ptr, v); err != nil {
-						return fmt.Errorf("%s/%s: %v", l, k, err)
+						return resolver.Error(&loc{l.Path, l.Ptr + "/" + k}, err)
 					}
 				}
 			}
 		case []interface{}:
 			// TODO
-			return fmt.Errorf("%s: inlining of array not yet implemented", l)
+			return resolver.Errorf(l, "inlining of array not yet implemented")
 		default:
-			return fmt.Errorf("%s: inlined scalar value can't be patched", l)
+			return resolver.Errorf(l, "inlined scalar value can't be patched")
 		}
 	}
 
@@ -436,7 +480,11 @@ func (resolver *refResolver) expandTagInline(obj map[string]interface{}, set set
 
 func (resolver *refResolver) resolveAndExpand(link string, relativeTo *loc) (n *node, err error) {
 	n, err = resolver.resolve(link, relativeTo)
-	if err == nil {
+	if err != nil {
+		if _, isExpandErr := err.(*errExpand); !isExpandErr {
+			err = resolver.Error(relativeTo, err)
+		}
+	} else {
 		err = resolver.expand(*n)
 	}
 	return
@@ -447,8 +495,11 @@ func ExpandRefs(rdoc *interface{}, docURL *url.URL) error {
 		panic("URL fragment unexpected for initial document")
 	}
 
-	path := docURL.Path
+	cwd, _ := os.Getwd()
+
+	path := path.Clean(docURL.Path)
 	resolver := refResolver{
+		basePath: filepath.ToSlash(cwd),
 		rootPath: path,
 		docs: map[string]*interface{}{
 			path: rdoc,
@@ -480,7 +531,7 @@ func ExpandRefs(rdoc *interface{}, docURL *url.URL) error {
 		}
 		target, err := jsonptr.Get(*resolver.docs[sourcePath], ptr)
 		if err != nil {
-			return fmt.Errorf("%s#%s has disappeared after replacement of $inline and $merge", sourcePath, ptr)
+			return fmt.Errorf("%s#%s has disappeared after replacement of $inline and $merge: %v", sourcePath, ptr, err)
 		}
 		if err = jsonptr.Set(rdoc, ptr, target); err != nil {
 			return fmt.Errorf("%s#%s: %v", sourcePath, ptr, err)
