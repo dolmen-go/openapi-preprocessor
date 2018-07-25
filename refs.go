@@ -305,6 +305,12 @@ func (resolver *refResolver) expandTagRef(obj map[string]interface{}, set setter
 	if err != nil {
 		return err
 	}
+	if strings.HasPrefix(l.Ptr+"/", target.loc.Ptr+"/") {
+		if target.loc.Ptr == "" {
+			return resolver.Errorf(l, "injection of %q at root will create a circular link (tip: use $inline)", target.loc.Path)
+		}
+		return resolver.Errorf(l, "injection of %q at path %q will create a circular link (tip: use $inline)", target.loc, target.loc.Ptr)
+	}
 
 	if resolver.inject != nil {
 		if target.loc.Path != resolver.rootPath {
@@ -525,7 +531,7 @@ func ExpandRefs(rdoc *interface{}, docURL *url.URL) error {
 		}
 		target, err := jsonptr.Get(*resolver.docs[sourcePath], ptr)
 		if err != nil {
-			return fmt.Errorf("%s#%s has disappeared after replacement of $inline and $merge", sourcePath, ptr)
+			return fmt.Errorf("%s#%s has disappeared after replacement of $inline and $merge: %v", sourcePath, ptr, err)
 		}
 		if err = jsonptr.Set(rdoc, ptr, target); err != nil {
 			return fmt.Errorf("%s#%s: %v", sourcePath, ptr, err)
