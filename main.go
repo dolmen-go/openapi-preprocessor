@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net/url"
@@ -24,14 +25,22 @@ func _main() (int, error) {
 	log.SetPrefix("")
 	log.SetFlags(0)
 
-	if len(os.Args) < 2 {
+	var compactJSON bool
+	flag.BoolVar(&compactJSON, "c", false, "compact JSON output")
+	flag.BoolVar(&compactJSON, "compact-output", false, "compact JSON output")
+
+	flag.Parse()
+
+	if flag.NArg() < 1 {
 		return 1, fmt.Errorf("usage: %s <file>", os.Args[0])
 	}
 
 	enc := json.NewEncoder(os.Stdout)
-	enc.SetIndent("", "  ")
+	if !compactJSON {
+		enc.SetIndent("", "  ")
+	}
 
-	return 0, processFile(os.Args[1], enc.Encode)
+	return 0, processFile(flag.Arg(0), enc.Encode)
 }
 
 func processFile(pth string, encode func(interface{}) error) error {
