@@ -321,7 +321,7 @@ func (resolver *refResolver) expandTagRef(obj map[string]interface{}, set setter
 	if err != nil {
 		return err
 	}
-	if strings.HasPrefix(l.Ptr+"/", target.loc.Ptr+"/") {
+	if l.Ptr != target.loc.Ptr && strings.HasPrefix(l.Ptr+"/", target.loc.Ptr+"/") {
 		if target.loc.Ptr == "" {
 			return resolver.Errorf(l, "injection of %q at root will create a circular link (tip: use $inline)", target.loc.Path)
 		}
