@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/dolmen-go/jsonptr"
 )
@@ -27,6 +28,10 @@ func removeEmptyObject(rdoc *interface{}, pointer string) {
 	}
 }
 
+// CleanUnused checks references to global components and removes unreferenced components.
+//
+// This is an important step after ExpandRefs as some components referenced through $inline
+// or $merge have been injected and are not needed anymore.
 func CleanUnused(rdoc *interface{}) error {
 
 	root, isObj := (*rdoc).(map[string]interface{})
@@ -35,8 +40,21 @@ func CleanUnused(rdoc *interface{}) error {
 	}
 
 	if paths, hasPaths := root["paths"]; hasPaths {
+
+		var components []string
+
+		if _, hasSwaggerVersion := root["swagger"]; hasSwaggerVersion {
+			// TODO check version value (must be "2.0")
+			components = []string{`/definitions`, `/parameters`, `/responses`}
+		}
+
+		if _, hasOpenAPIVersion := root["openapi"]; hasOpenAPIVersion {
+			components = []string{`/components/schemas`, `/components/parameters`, `/components/responses`}
+		}
+
+		// Collect all defined components.
 		unused := make(map[string]bool)
-		for _, p := range []string{`/components/schemas`, `/components/parameters`, `/components/responses`} {
+		for _, p := range components {
 			compRaw, err := jsonptr.Get(root, p)
 			if err != nil {
 				continue
@@ -49,17 +67,26 @@ func CleanUnused(rdoc *interface{}) error {
 				unused[p+"/"+jsonptr.EscapeString(k)] = true
 			}
 		}
+
 		var visitor func(ptr jsonptr.Pointer, ref string) (string, error)
+		var visited map[string]bool
 		visitor = func(ptr jsonptr.Pointer, ref string) (string, error) {
+			// Assumptions (ensured by ExpandRefs):
+			// - all $ref have been resolved to internal links
+			// - all $ref have been checked to not be circular
 			if ref[0] != '#' {
 				return ref, fmt.Errorf("%s: unexpected $ref %q", ptr, ref)
 			}
 			link := ref[1:]
 			// log.Println(ptr, "=>", link)
+			if visited[link] {
+				return ref, nil
+			}
 			if unused[link] {
 				// log.Println("seen", link)
 				delete(unused, link)
 			}
+			visited[link] = true
 			targetPtr, err := jsonptr.Parse(link)
 			if err != nil {
 				return ref, err
@@ -72,12 +99,21 @@ func CleanUnused(rdoc *interface{}) error {
 			return ref, visitRefs(target, targetPtr, visitor)
 		}
 
+		// Visit paths to detect components which are used
 		err := visitRefs(paths, append(make(jsonptr.Pointer, 0, 50), "paths"), visitor)
 		if err != nil {
 			return err
 		}
 
+	nextUnused:
 		for p := range unused {
+			// Look for deep references in unused schemas
+			prefix := p + "/"
+			for v := range visited {
+				if strings.HasPrefix(v, prefix) {
+					continue nextUnused
+				}
+			}
 			// log.Printf("%s: unused", p)
 			_, err = jsonptr.Delete(rdoc, p)
 			if err != nil {
@@ -90,6 +126,9 @@ func CleanUnused(rdoc *interface{}) error {
 	removeEmptyObject(rdoc, `/components/parameters`)
 	removeEmptyObject(rdoc, `/components/responses`)
 	removeEmptyObject(rdoc, `/components`)
+	removeEmptyObject(rdoc, `/definitions`)
+	removeEmptyObject(rdoc, `/parameters`)
+	removeEmptyObject(rdoc, `/responses`)
 
 	return nil
 }
