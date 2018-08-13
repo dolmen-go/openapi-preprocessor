@@ -1,17 +1,27 @@
 # openapi-preprocessor
 
-`openapi-preprocessor` is an authoring tool to ease writing API documentation following OpenAPI 2.0/3.x specifications.
+`openapi-preprocessor` is an processing tool that gives flexibility to API documentation authors for writing OpenAPI 2.0/3.x specifications.
+
+## Uses Cases
+
+- Author your OpenAPI spec in YAML but publish as JSON.
+- Split your OpenAPI spec source in multiple files for authoring, but publish a single file.
+- Build multiple specs from shared parts.
+- Merge spec generated from source code with your additional content created by hand.
+- Use advanced inlining (`$inline`, `$merge`) to remove duplication (source of inconsistencies).
+- Use advanced inlining (`$inline`, `$merge`) to produce complex schemas that share subset of properties.
+- *Submit yours...*
 
 ## Features
-- Every valid OpenAPI 2.0 specification is a valid input (so you can easily start refactoring gradually from an existing spec)
+
+- Every valid OpenAPI 2.0/3.x specification is a valid input (so you can easily start refactoring gradually from an existing spec)
 - Allows to build a spec from multiple files; produces a single output file
-- YAML or JSON input: YAML allows 
+- YAML or JSON input
 - Produces an OpenAPI with maximum compatibility with consumming tools:
-  - simplifies complex parts of the spec
+  - simplifies complex parts of the spec not supported by all tools
   - JSON output
-  - remove 
-- Add a few keywords (`$inline`, `$merge`) that allow to avoid duplication of content and ease the writing of consistent documentation
-- (*TODO*) Unused global schemas (under `/definitions`), parameters (under `/parameters`) and responses (under `/responses`) are cleaned.
+- Adds a few keywords (`$inline`, `$merge`) that allow to avoid duplication of content and ease the writing of consistent documentation
+- Removes inused global schemas (under `/definitions`), parameters (under `/parameters`) and responses (under `/responses`). This reduces risk of leaking work in progress or internal details.
 
 ## Keywords
 
