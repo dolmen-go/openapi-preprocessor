@@ -5,9 +5,9 @@ go_import_path: github.com/dolmen-go/openapi-preprocessor
 
 go:
 - 1.8.x
-- 1.9.x"
+- 1.9.x
 - 1.10.x
-- tip"
+- tip
 
 sudo: false
 
