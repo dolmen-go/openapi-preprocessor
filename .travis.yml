@@ -1,0 +1,21 @@
+---
+language: go
+
+go_import_path: github.com/dolmen-go/openapi-preprocessor
+
+go:
+- 1.8.x
+- 1.9.x"
+- 1.10.x
+- tip"
+
+sudo: false
+
+before_install:
+- go get -t -v ./...
+
+script:
+- go test -coverprofile=coverage.txt -covermode=atomic
+
+after_success:
+- bash <(curl -s https://codecov.io/bash)
