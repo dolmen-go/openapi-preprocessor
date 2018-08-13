@@ -49,7 +49,17 @@ func CleanUnused(rdoc *interface{}) error {
 		}
 
 		if _, hasOpenAPIVersion := root["openapi"]; hasOpenAPIVersion {
-			components = []string{`/components/schemas`, `/components/parameters`, `/components/responses`}
+			components = []string{
+				`/components/schemas`,
+				`/components/parameters`,
+				`/components/responses`,
+				`/components/examples`,
+				`/components/requestBodies`,
+				`/components/headers`,
+				`/components/securitySchemes`,
+				`/components/links`,
+				`/components/callbacks`,
+			}
 		}
 
 		// Collect all defined components.
