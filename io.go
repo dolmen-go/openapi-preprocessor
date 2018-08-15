@@ -38,7 +38,9 @@ func loadFile(pth string) (map[string]interface{}, error) {
 }
 
 func loadYAML(r io.Reader) (map[string]interface{}, error) {
-	data, err := loadAny(yaml.NewDecoder(r))
+	dec := yaml.NewDecoder(r)
+	dec.SetStrict(true)
+	data, err := loadAny(dec)
 	if err != nil {
 		return nil, err
 	}
