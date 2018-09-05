@@ -15,6 +15,15 @@ import (
 	"github.com/dolmen-go/jsonptr"
 )
 
+func skipRef(ptr jsonptr.Pointer) bool {
+	if len(ptr) < 1 {
+		return false
+	}
+	last := ptr[len(ptr)-1]
+	return last == "properties" ||
+		last == "additionalProperties"
+}
+
 // visitRefs visits $ref and allows to change them.
 func visitRefs(root interface{}, ptr jsonptr.Pointer, visitor func(jsonptr.Pointer, string) (string, error)) (err error) {
 	//log.Println(ptr)
@@ -26,7 +35,7 @@ func visitRefs(root interface{}, ptr jsonptr.Pointer, visitor func(jsonptr.Point
 		ptr.Grow(1)
 		for _, k := range sortedKeys(root) {
 			ptr.Property(k)
-			if k == "$ref" {
+			if k == "$ref" && !skipRef(ptr[:len(ptr)-1]) {
 				if str, isString := root[k].(string); isString {
 					root[k], err = visitor(ptr, str)
 					if err != nil {
@@ -278,7 +287,7 @@ func (resolver *refResolver) expand(n node) error {
 		return nil
 	}
 
-	if ref, isRef := obj["$ref"]; isRef {
+	if ref, isRef := obj["$ref"]; isRef && !skipRef(jsonptr.MustParse(n.loc.Ptr)) {
 		return resolver.expandTagRef(obj, n.set, &n.loc, ref)
 	}
 
