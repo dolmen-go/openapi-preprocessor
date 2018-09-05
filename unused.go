@@ -78,8 +78,8 @@ func CleanUnused(rdoc *interface{}) error {
 			}
 		}
 
+		visited := make(map[string]bool)
 		var visitor func(ptr jsonptr.Pointer, ref string) (string, error)
-		var visited map[string]bool
 		visitor = func(ptr jsonptr.Pointer, ref string) (string, error) {
 			// Assumptions (ensured by ExpandRefs):
 			// - all $ref have been resolved to internal links
