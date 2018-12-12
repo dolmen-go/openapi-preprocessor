@@ -14,6 +14,7 @@
 - Merge spec generated from source code with your additional content created by hand.
 - Use advanced inlining (`$inline`, `$merge`) to remove duplication (source of inconsistencies).
 - Use advanced inlining (`$inline`, `$merge`) to produce complex schemas that share subset of properties.
+- Derivate a spec to build a new spec with altered servers settings for localhost/staging/preprod environments.
 - *Submit yours...*
 
 ## Features
