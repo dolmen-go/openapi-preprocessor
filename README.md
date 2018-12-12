@@ -2,6 +2,10 @@
 
 `openapi-preprocessor` is an processing tool that gives flexibility to API documentation authors for writing OpenAPI 2.0/3.x specifications.
 
+[![Travis-CI](https://api.travis-ci.org/dolmen-go/openapi-preprocessor.svg?branch=master)](https://travis-ci.org/dolmen-go/openapi-preprocessor)
+[![Codecov](https://img.shields.io/codecov/c/github/dolmen-go/openapi-preprocessor/master.svg)](https://codecov.io/gh/dolmen-go/openapi-preprocessor/branch/master)
+[![Go Report Card](https://goreportcard.com/badge/github.com/dolmen-go/openapi-preprocessor)](https://goreportcard.com/report/github.com/dolmen-go/openapi-preprocessor)
+
 ## Uses Cases
 
 - Author your OpenAPI spec in YAML but publish as JSON.
