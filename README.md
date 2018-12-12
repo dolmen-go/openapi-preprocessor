@@ -35,7 +35,7 @@
 
 Restrictions:
 - JSON pointer location in the output document will be the same location as in the ref link. Example: `{"$ref": "external.yml#/components/parameters/Id"}` will import the content to `/components/parameters/Id`. This implies that partial files should have the same layout as a full spec (this is a feature as it enforces readability of partials).
-- other properties along `$ref` are not allowed as the semantic in JSON Schema and Swagger/OpenAPI has evolved and the support in consuming tools may vary. Use `$merge` instead that has a strict behaviour in this tool.
+- other properties along `$ref` are not allowed as the semantics in JSON Schema and Swagger/OpenAPI has evolved and the support in consuming tools may vary. Use `$merge` instead that has a strict behaviour in this tool.
 
 ### `$inline`
 
