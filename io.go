@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	yaml "gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v3"
 )
 
 func loadURL(u *url.URL) (map[string]interface{}, error) {
@@ -38,9 +38,7 @@ func loadFile(pth string) (map[string]interface{}, error) {
 }
 
 func loadYAML(r io.Reader) (map[string]interface{}, error) {
-	dec := yaml.NewDecoder(r)
-	dec.SetStrict(true)
-	data, err := loadAny(dec)
+	data, err := loadAny(yaml.NewDecoder(r))
 	if err != nil {
 		return nil, err
 	}
