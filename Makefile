@@ -19,3 +19,8 @@ $(binary): .FORCE
 
 test:
 	$(go) test -v ./...
+
+cover:
+	$(go) test -coverprofile .coverage.out -covermode=atomic
+	$(go) tool cover -html=.coverage.out
+
