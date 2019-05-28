@@ -28,11 +28,16 @@ func _main() (int, error) {
 	var compactJSON bool
 	flag.BoolVar(&compactJSON, "c", false, "compact JSON output")
 	flag.BoolVar(&compactJSON, "compact-output", false, "compact JSON output")
+	flag.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [<option>...] <file>\nOptions:\n", os.Args[0])
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
 
 	flag.Parse()
 
 	if flag.NArg() < 1 {
-		return 1, fmt.Errorf("usage: %s <file>", os.Args[0])
+		flag.Usage()
 	}
 
 	enc := json.NewEncoder(os.Stdout)
