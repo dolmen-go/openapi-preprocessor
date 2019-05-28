@@ -28,6 +28,20 @@
 - Adds a few keywords (`$inline`, `$merge`) that allow to avoid duplication of content and ease the writing of consistent documentation
 - Removes inused global schemas (under `/definitions`), parameters (under `/parameters`) and responses (under `/responses`). This reduces risk of leaking work in progress or internal details.
 
+## Install
+
+### Install from source
+
+A [Go development environment](https://golang.org/doc/install#install) is required. Go 1.12+ recommended.
+
+Build `openapi-preprocessor` binary and install in `$GOPATH/bin`:
+
+    $ make install
+
+## Usage
+
+    openapi-preprocessor [<option>...] <file>
+
 ## Keywords
 
 ### `$ref`
