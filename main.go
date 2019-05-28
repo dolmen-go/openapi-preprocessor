@@ -10,6 +10,16 @@ import (
 	"path/filepath"
 )
 
+// go build -ldflags "-X main.version=@(#)$(git describe --tags --always --dirty)"
+// '@(#)' is a special tag recognized by the 'what' command
+var version = "master"
+
+func init() {
+	if len(version) > 0 && version[0] == '@' {
+		version = version[4:]
+	}
+}
+
 func main() {
 	code, err := _main()
 	if err != nil {
@@ -25,6 +35,9 @@ func _main() (int, error) {
 	log.SetPrefix("")
 	log.SetFlags(0)
 
+	var showVersion bool
+	flag.BoolVar(&showVersion, "version", false, "show program version")
+
 	var compactJSON bool
 	flag.BoolVar(&compactJSON, "c", false, "compact JSON output")
 	flag.BoolVar(&compactJSON, "compact-output", false, "compact JSON output")
@@ -35,6 +48,11 @@ func _main() (int, error) {
 	}
 
 	flag.Parse()
+
+	if showVersion {
+		fmt.Println(version)
+		return 0, nil
+	}
 
 	if flag.NArg() < 1 {
 		flag.Usage()
