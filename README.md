@@ -92,6 +92,11 @@ Restrictions:
 
 See the [testsuite](https://github.com/dolmen-go/openapi-preprocessor/tree/master/testdata).
 
+Running a basic example:
+
+    $ make
+    $ ./openapi-preprocessor testdata/10-ref-ext/input.yml
+
 ## License
 
 Copyright 2018 Olivier Mengué
