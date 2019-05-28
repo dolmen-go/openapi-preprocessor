@@ -5,7 +5,7 @@ version = $$(git describe --tags --always --dirty)
 
 all: $(binary)
 
-.PHONY: all test clean .FORCE
+.PHONY: all test clean install .FORCE
 
 clean:
 	rm -f $(binary)
@@ -16,6 +16,9 @@ version:
 $(binary): .FORCE
 	@printf 'version: \033[1;33m%s\033[m\n' $(version)
 	$(go) build -ldflags "-X main.version=@(#)$(version)" -o $@
+
+install:
+	$(go) install -ldflags "-X main.version=@(#)$(version)"
 
 test:
 	$(go) test -v ./...
