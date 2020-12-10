@@ -68,6 +68,8 @@ Restrictions:
 
 `$inline` is an OpenAPI extension allowing to inject a copy of another part of a document in place. Keys along the `$inline` keyword are JSON pointers (with the leading `/` removed) allowing to override some parts of the inlined content.
 
+Note: deep inlining (inlining a node which itself use `$inline` in its tree) might work, but will probably not (see [issue #6](https://github.com/dolmen-go/openapi-preprocessor/issues/6) as an example). Use instead `$merge` which supports it.
+
 ### `$merge`
 
     {
