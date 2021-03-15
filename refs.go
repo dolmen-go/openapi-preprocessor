@@ -301,7 +301,52 @@ func (resolver *refResolver) expand(n node) error {
 		return resolver.expandTagInline(obj, n.set, &n.loc, ref)
 	}
 
-	for _, k := range sortedKeys(obj) {
+	keys := sortedKeys(obj)
+
+	removeKey := func(k string) {
+		for i, kk := range keys {
+			if kk == k {
+				keys = append(keys[:i], keys[i+1:]...)
+				return
+			}
+		}
+	}
+
+	if n.loc.Ptr == "" {
+		// Resolve /components first
+		const components = "components"
+		if comp, hasComponents := obj[components]; hasComponents {
+			if comp, isObj := comp.(map[string]interface{}); isObj {
+				const k = components
+				//log.Println("Key:", k)
+				err := resolver.expand(node{comp, func(data interface{}) {
+					obj[k] = data
+				}, n.loc.Property(k)})
+				if err != nil {
+					return err
+				}
+				removeKey(components)
+			}
+		}
+	} else if n.loc.Ptr == "/components" {
+		// Resolve /components/schemas first
+		const schemas = "schemas"
+		if sch, hasSchemas := obj[schemas]; hasSchemas {
+			if sch, isObj := sch.(map[string]interface{}); isObj {
+				const k = schemas
+				//log.Println("Key:", k)
+				err := resolver.expand(node{sch, func(data interface{}) {
+					obj[k] = data
+				}, n.loc.Property(k)})
+				if err != nil {
+					return err
+				}
+				removeKey(schemas)
+			}
+		}
+	}
+
+	for _, k := range keys {
 		//log.Println("Key:", k)
 		err := resolver.expand(node{obj[k], func(data interface{}) {
 			obj[k] = data
