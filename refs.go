@@ -304,17 +304,15 @@ func (resolver *refResolver) expand(n node) error {
 	keys := sortedKeys(obj)
 
 	expandFirst := func(prop string) error {
-		if obj, hasProp := obj[prop]; hasProp {
-			if obj, isObj := obj.(map[string]interface{}); isObj {
-				if err := resolver.expandProperty(n.loc, obj, prop); err != nil {
-					return err
-				}
-				// Remove prop from keys
-				for i, k := range keys {
-					if k == prop {
-						keys = append(keys[:i], keys[i+1:]...)
-						break
-					}
+		if obj, hasProp := objectProp(obj, prop); hasProp {
+			if err := resolver.expandProperty(n.loc, obj, prop); err != nil {
+				return err
+			}
+			// Remove prop from keys
+			for i, k := range keys {
+				if k == prop {
+					keys = append(keys[:i], keys[i+1:]...)
+					break
 				}
 			}
 		}
