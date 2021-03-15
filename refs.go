@@ -317,12 +317,7 @@ func (resolver *refResolver) expand(n node) error {
 		const components = "components"
 		if comp, hasComponents := obj[components]; hasComponents {
 			if comp, isObj := comp.(map[string]interface{}); isObj {
-				const k = components
-				//log.Println("Key:", k)
-				err := resolver.expand(node{comp, func(data interface{}) {
-					obj[k] = data
-				}, n.loc.Property(k)})
-				if err != nil {
+				if err := resolver.expandProperty(n.loc, comp, components); err != nil {
 					return err
 				}
 				removeKey(components)
@@ -333,12 +328,7 @@ func (resolver *refResolver) expand(n node) error {
 		const schemas = "schemas"
 		if sch, hasSchemas := obj[schemas]; hasSchemas {
 			if sch, isObj := sch.(map[string]interface{}); isObj {
-				const k = schemas
-				//log.Println("Key:", k)
-				err := resolver.expand(node{sch, func(data interface{}) {
-					obj[k] = data
-				}, n.loc.Property(k)})
-				if err != nil {
+				if err := resolver.expandProperty(n.loc, sch, schemas); err != nil {
 					return err
 				}
 				removeKey(schemas)
@@ -347,16 +337,19 @@ func (resolver *refResolver) expand(n node) error {
 	}
 
 	for _, k := range keys {
-		//log.Println("Key:", k)
-		err := resolver.expand(node{obj[k], func(data interface{}) {
-			obj[k] = data
-		}, n.loc.Property(k)})
-		if err != nil {
+		if err := resolver.expandProperty(n.loc, obj, k); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func (resolver *refResolver) expandProperty(parentLoc loc, obj map[string]interface{}, key string) error {
+	//log.Println("Key:", key)
+	return resolver.expand(node{obj[key], func(data interface{}) {
+		obj[key] = data
+	}, parentLoc.Property(key)})
 }
 
 // expandTagRef expands (follows) a $ref link.
