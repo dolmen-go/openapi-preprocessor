@@ -301,17 +301,50 @@ func (resolver *refResolver) expand(n node) error {
 		return resolver.expandTagInline(obj, n.set, &n.loc, ref)
 	}
 
-	for _, k := range sortedKeys(obj) {
-		//log.Println("Key:", k)
-		err := resolver.expand(node{obj[k], func(data interface{}) {
-			obj[k] = data
-		}, n.loc.Property(k)})
-		if err != nil {
+	keys := sortedKeys(obj)
+
+	expandFirst := func(prop string) error {
+		if obj, hasProp := objectProp(obj, prop); hasProp {
+			if err := resolver.expandProperty(n.loc, obj, prop); err != nil {
+				return err
+			}
+			// Remove prop from keys
+			for i, k := range keys {
+				if k == prop {
+					keys = append(keys[:i], keys[i+1:]...)
+					break
+				}
+			}
+		}
+		return nil
+	}
+
+	if n.loc.Ptr == "" {
+		// Resolve /components first
+		if err := expandFirst("components"); err != nil {
+			return err
+		}
+	} else if n.loc.Ptr == "/components" {
+		// Resolve /components/schemas first
+		if err := expandFirst("schemas"); err != nil {
+			return err
+		}
+	}
+
+	for _, k := range keys {
+		if err := resolver.expandProperty(n.loc, obj, k); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func (resolver *refResolver) expandProperty(parentLoc loc, obj map[string]interface{}, key string) error {
+	//log.Println("Key:", key)
+	return resolver.expand(node{obj[key], func(data interface{}) {
+		obj[key] = data
+	}, parentLoc.Property(key)})
 }
 
 // expandTagRef expands (follows) a $ref link.
