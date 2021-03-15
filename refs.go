@@ -314,6 +314,15 @@ func (resolver *refResolver) expand(n node) error {
 	return nil
 }
 
+func stringProp(obj map[string]interface{}, key string) (value string, ok bool) {
+	v, ok := obj[key]
+	if ok {
+		return "", false
+	}
+	value, ok = v.(string)
+	return
+}
+
 // expandTagRef expands (follows) a $ref link.
 func (resolver *refResolver) expandTagRef(obj map[string]interface{}, set setter, l *loc, ref interface{}) error {
 	//log.Printf("$ref: %s => %s", l, ref)
@@ -323,7 +332,21 @@ func (resolver *refResolver) expandTagRef(obj map[string]interface{}, set setter
 	}
 
 	if len(obj) > 1 {
-		return resolver.Errorf(l, "$ref must be alone (tip: use $merge instead)")
+		unexpected := len(obj) - 1 // Don't count $ref
+		// http://spec.openapis.org/oas/v3.1.0#reference-object
+		if _, ok := stringProp(obj, "summary"); ok {
+			unexpected--
+		}
+		if _, ok := stringProp(obj, "description"); ok {
+			unexpected--
+		}
+		// Non-standard, but that's not our job to validate spec
+		if _, ok := stringProp(obj, "$comment"); ok {
+			unexpected--
+		}
+		if unexpected > 0 {
+			return resolver.Errorf(l, "$ref must be alone (tip: use $merge instead)")
+		}
 	}
 
 	target, err := resolver.resolveAndExpand(link, l)
