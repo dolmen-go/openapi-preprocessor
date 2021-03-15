@@ -303,36 +303,33 @@ func (resolver *refResolver) expand(n node) error {
 
 	keys := sortedKeys(obj)
 
-	removeKey := func(k string) {
-		for i, kk := range keys {
-			if kk == k {
-				keys = append(keys[:i], keys[i+1:]...)
-				return
+	expandFirst := func(prop string) error {
+		if obj, hasProp := obj[prop]; hasProp {
+			if obj, isObj := obj.(map[string]interface{}); isObj {
+				if err := resolver.expandProperty(n.loc, obj, prop); err != nil {
+					return err
+				}
+				// Remove prop from keys
+				for i, k := range keys {
+					if k == prop {
+						keys = append(keys[:i], keys[i+1:]...)
+						break
+					}
+				}
 			}
 		}
+		return nil
 	}
 
 	if n.loc.Ptr == "" {
 		// Resolve /components first
-		const components = "components"
-		if comp, hasComponents := obj[components]; hasComponents {
-			if comp, isObj := comp.(map[string]interface{}); isObj {
-				if err := resolver.expandProperty(n.loc, comp, components); err != nil {
-					return err
-				}
-				removeKey(components)
-			}
+		if err := expandFirst("components"); err != nil {
+			return err
 		}
 	} else if n.loc.Ptr == "/components" {
 		// Resolve /components/schemas first
-		const schemas = "schemas"
-		if sch, hasSchemas := obj[schemas]; hasSchemas {
-			if sch, isObj := sch.(map[string]interface{}); isObj {
-				if err := resolver.expandProperty(n.loc, sch, schemas); err != nil {
-					return err
-				}
-				removeKey(schemas)
-			}
+		if err := expandFirst("schemas"); err != nil {
+			return err
 		}
 	}
 
