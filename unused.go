@@ -43,12 +43,12 @@ func CleanUnused(rdoc *interface{}) error {
 
 		var components []string
 
-		if _, hasSwaggerVersion := root["swagger"]; hasSwaggerVersion {
+		if _, hasSwaggerVersion := stringProp(root, "swagger"); hasSwaggerVersion {
 			// TODO check version value (must be "2.0")
 			components = []string{`/definitions`, `/parameters`, `/responses`}
 		}
 
-		if _, hasOpenAPIVersion := root["openapi"]; hasOpenAPIVersion {
+		if _, hasOpenAPIVersion := stringProp(root, "openapi"); hasOpenAPIVersion {
 			components = []string{
 				`/components/schemas`,
 				`/components/parameters`,
