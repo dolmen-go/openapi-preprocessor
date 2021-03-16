@@ -314,15 +314,6 @@ func (resolver *refResolver) expand(n node) error {
 	return nil
 }
 
-func stringProp(obj map[string]interface{}, key string) (value string, ok bool) {
-	v, ok := obj[key]
-	if ok {
-		return "", false
-	}
-	value, ok = v.(string)
-	return
-}
-
 // expandTagRef expands (follows) a $ref link.
 func (resolver *refResolver) expandTagRef(obj map[string]interface{}, set setter, l *loc, ref interface{}) error {
 	//log.Printf("$ref: %s => %s", l, ref)

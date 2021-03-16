@@ -19,3 +19,12 @@ func objectProp(obj map[string]interface{}, key string) (value map[string]interf
 	value, ok = v.(map[string]interface{})
 	return
 }
+
+func stringProp(obj map[string]interface{}, key string) (value string, ok bool) {
+	v, ok := obj[key]
+	if ok {
+		return "", false
+	}
+	value, ok = v.(string)
+	return
+}
