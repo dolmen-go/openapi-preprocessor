@@ -10,3 +10,12 @@ func sortedKeys(obj map[string]interface{}) (keys []string) {
 	sort.Strings(keys)
 	return
 }
+
+func objectProp(obj map[string]interface{}, key string) (value map[string]interface{}, ok bool) {
+	v, ok := obj[key]
+	if ok {
+		return nil, false
+	}
+	value, ok = v.(map[string]interface{})
+	return
+}
