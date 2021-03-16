@@ -13,7 +13,7 @@ func sortedKeys(obj map[string]interface{}) (keys []string) {
 
 func objectProp(obj map[string]interface{}, key string) (value map[string]interface{}, ok bool) {
 	v, ok := obj[key]
-	if ok {
+	if !ok {
 		return nil, false
 	}
 	value, ok = v.(map[string]interface{})
@@ -22,7 +22,7 @@ func objectProp(obj map[string]interface{}, key string) (value map[string]interf
 
 func stringProp(obj map[string]interface{}, key string) (value string, ok bool) {
 	v, ok := obj[key]
-	if ok {
+	if !ok {
 		return "", false
 	}
 	value, ok = v.(string)
