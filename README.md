@@ -62,11 +62,13 @@ Restrictions:
 
     {
         "$inline": "<file>#<pointer>",
-        "pointer": <value>, // Overrides value at <file>#<pointer>/pointer1
-        "pointer/slash": <value> // Overrides value at <file>#<pointer>/pointer/slash
+        "pointer1": <value>, // Overrides value at <file>#<pointer>/pointer1
+        "pointer2/slash": <value> // Overrides value deeply at <file>#<pointer>/pointer/slash
     }
 
 `$inline` is an OpenAPI extension allowing to inject a copy of another part of a document in place. Keys along the `$inline` keyword are JSON pointers (with the leading `/` removed) allowing to override some parts of the inlined content.
+
+If the target of `$inline` is a `$ref` and `$inline` has overrides, the link is dereferenced recursively before inlining.
 
 Note: deep inlining (inlining a node which itself use `$inline` in its tree) might work, but will probably not (see [issue #6](https://github.com/dolmen-go/openapi-preprocessor/issues/6) as an example). Use instead `$merge` which supports it.
 

@@ -134,6 +134,32 @@ type node struct {
 	loc  loc
 }
 
+// IsRef returns true if the node is a $ref.
+func (n *node) IsRef() bool {
+	obj, isObj := n.data.(map[string]interface{})
+	if !isObj || obj == nil {
+		return false
+	}
+	link, isString := obj["$ref"].(string)
+	if !isString {
+		return false
+	}
+	return len(link) > 0
+}
+
+// Ref returns the link of a $ref node.
+func (n *node) Ref() string {
+	obj, isObj := n.data.(map[string]interface{})
+	if !isObj || obj == nil {
+		return ""
+	}
+	link, isString := obj["$ref"].(string)
+	if !isString {
+		return ""
+	}
+	return link
+}
+
 type refResolver struct {
 	basePath string // absolute path to make errors relative to
 	rootPath string
@@ -477,10 +503,29 @@ func (resolver *refResolver) expandTagInline(obj map[string]interface{}, set set
 	inlining := resolver.inlining
 	resolver.inlining = true
 
-	target, err := resolver.resolveAndExpand(link, l)
-	if err != nil {
-		return err
+	var target *node
+	var err error
+	l2 := loc{l.Path, l.Ptr} // Clone
+	for {
+		target, err = resolver.resolveAndExpand(link, &l2)
+		if err != nil {
+			return err
+		}
+		// If target is not $ref, stop
+		link = target.Ref()
+		if link == "" || len(obj) == 1 {
+			break
+		}
+		/*
+			if target.loc == l2 {
+				// FIXME Fix message
+				return resolver.Errorf(&loc{l.Path, l.Ptr + "/$inline"}, "circular link %s %s", l2, link)
+			}
+		*/
+		// Else loop to dereference it
+		l2 = loc{target.loc.Path, target.loc.Ptr}
 	}
+
 	resolver.inlining = inlining
 
 	target.data = deepcopy.Copy(target.data)
