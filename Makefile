@@ -1,7 +1,8 @@
 
 binary = openapi-preprocessor
 go = GO111MODULE=on go
-version = $$(git describe --tags --always --dirty)
+# Go-modules versionning style
+version = $(shell TZ=UTC git log -1 '--date=format-local:%Y%m%d%H%M%S' --abbrev=12 '--pretty=tformat:v0.0.0-%cd-%h')
 
 all: $(binary)
 
