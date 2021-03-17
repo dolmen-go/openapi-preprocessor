@@ -167,6 +167,7 @@ type refResolver struct {
 	visited  map[loc]bool
 	inject   map[string]string
 	inlining bool
+	trace    func(string)
 }
 
 type errExpand struct {
@@ -190,6 +191,13 @@ func (resolver *refResolver) Errorf(loc *loc, msg string, args ...interface{}) e
 		err = fmt.Errorf(msg, args...)
 	}
 	return resolver.Error(loc, err)
+}
+
+func (resolver *refResolver) Tracef(msg string, args ...interface{}) {
+	if resolver.trace == nil {
+		return
+	}
+	resolver.trace(fmt.Sprintf(msg, args...))
 }
 
 func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error) {
@@ -286,7 +294,7 @@ func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error
 }
 
 func (resolver *refResolver) expand(n node) error {
-	//log.Println(u, node.loc.Ptr)
+	resolver.Tracef("%14s %s", n.loc.Path[strings.LastIndexByte(n.loc.Path, '/')+1:], n.loc.Ptr)
 	if resolver.visited[n.loc] {
 		return nil
 	}
@@ -375,7 +383,7 @@ func (resolver *refResolver) expandProperty(parentLoc loc, obj map[string]interf
 
 // expandTagRef expands (follows) a $ref link.
 func (resolver *refResolver) expandTagRef(obj map[string]interface{}, set setter, l *loc, ref interface{}) error {
-	//log.Printf("$ref: %s => %s", l, ref)
+	resolver.Tracef("$ref: %s => %s", l, ref)
 	link, isString := ref.(string)
 	if !isString {
 		return resolver.Errorf(&loc{l.Path, l.Ptr + "/$ref"}, "must be a string")
@@ -426,6 +434,7 @@ func (resolver *refResolver) expandTagRef(obj map[string]interface{}, set setter
 
 // expandTagMerge expands a $merge object.
 func (resolver *refResolver) expandTagMerge(obj map[string]interface{}, set setter, l *loc, refs interface{}) error {
+	resolver.Tracef("$merge at %s", l)
 	var links []string
 	switch refs := refs.(type) {
 	case string:
@@ -495,6 +504,7 @@ func (resolver *refResolver) expandTagMerge(obj map[string]interface{}, set sett
 
 // expandTagInline expands a $inline object.
 func (resolver *refResolver) expandTagInline(obj map[string]interface{}, set setter, l *loc, ref interface{}) error {
+	resolver.Tracef("$inline: %s => %s", l, ref)
 	link, isString := ref.(string)
 	if !isString {
 		return resolver.Errorf(&loc{l.Path, l.Ptr + "/$inline"}, "must be a string")
@@ -607,7 +617,7 @@ func (resolver *refResolver) resolveAndExpand(link string, relativeTo *loc) (n *
 	return
 }
 
-func ExpandRefs(rdoc *interface{}, docURL *url.URL) error {
+func ExpandRefs(rdoc *interface{}, docURL *url.URL, trace func(string)) error {
 	if len(docURL.Fragment) > 0 {
 		panic("URL fragment unexpected for initial document")
 	}
@@ -623,6 +633,7 @@ func ExpandRefs(rdoc *interface{}, docURL *url.URL) error {
 		},
 		inject:  make(map[string]string),
 		visited: make(map[loc]bool),
+		trace:   trace,
 	}
 
 	// First step:

@@ -101,7 +101,7 @@ func runExpandRefs(t testing.TB, path string) {
 		err = processFile(inputPath, func(result interface{}) error {
 			out = result
 			return nil
-		})
+		}, &debugFlags{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -113,7 +113,7 @@ func runExpandRefs(t testing.TB, path string) {
 		for i := 0; i < tb.N; i++ {
 			_ = processFile(inputPath, func(interface{}) error {
 				return nil
-			})
+			}, &debugFlags{})
 		}
 	}
 }

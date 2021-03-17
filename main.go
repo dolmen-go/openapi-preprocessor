@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // go build -ldflags "-X main.version=@(#)$(git describe --tags --always --dirty)"
@@ -18,6 +19,33 @@ func init() {
 	if len(version) > 0 && version[0] == '@' {
 		version = version[4:]
 	}
+}
+
+type debugFlags struct {
+	Trace bool
+}
+
+func (dbg debugFlags) String() string {
+	if dbg.Trace {
+		return "trace"
+	}
+	return ""
+}
+
+func (dbg *debugFlags) Set(s string) error {
+	if s == "" {
+		return nil
+	}
+	vals := strings.Split(s, ",")
+	for _, v := range vals {
+		switch v {
+		case "trace":
+			dbg.Trace = true
+		default:
+			return fmt.Errorf("invalid debug value %q", v)
+		}
+	}
+	return nil
 }
 
 func main() {
@@ -37,6 +65,8 @@ func _main() (int, error) {
 
 	var showVersion bool
 	flag.BoolVar(&showVersion, "version", false, "show program version")
+	var debug debugFlags
+	flag.Var(&debug, "debug", "debug flags comma separated (trace=trace document navigation)")
 
 	var compactJSON bool
 	flag.BoolVar(&compactJSON, "c", false, "compact JSON output")
@@ -63,10 +93,10 @@ func _main() (int, error) {
 		enc.SetIndent("", "  ")
 	}
 
-	return 0, processFile(flag.Arg(0), enc.Encode)
+	return 0, processFile(flag.Arg(0), enc.Encode, &debug)
 }
 
-func processFile(pth string, encode func(interface{}) error) error {
+func processFile(pth string, encode func(interface{}) error, debug *debugFlags) error {
 	pth, err := filepath.Abs(pth)
 	if err != nil {
 		return err
@@ -80,10 +110,20 @@ func processFile(pth string, encode func(interface{}) error) error {
 	var tmp interface{}
 	tmp = spec
 
+	var trace func(string)
+	if debug.Trace {
+		buf := append(make([]byte, 0, 1024), "[TRACE] "...)
+		trace = func(s string) {
+			buf = append(append(buf, s...), '\n')
+			os.Stderr.Write(buf)
+			buf = buf[:8]
+		}
+	}
+
 	err = ExpandRefs(&tmp, &url.URL{
 		//Scheme: "file",
 		Path: filepath.ToSlash(pth),
-	})
+	}, trace)
 	if err != nil {
 		return err
 	}
