@@ -24,6 +24,9 @@ before_install:
 
 script:
 - go test -coverprofile=coverage.txt -covermode=atomic
+# Check install script
+- (cd $(go env GOPATH)/src; go get -u github.com/dolmen-go/openapi-preprocessor; go run github.com/dolmen-go/openapi-preprocessor/install)
+- openapi-preprocessor -version
 
 after_success:
 - bash <(curl -s https://codecov.io/bash)
