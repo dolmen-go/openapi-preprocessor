@@ -4,7 +4,10 @@
 
 package main
 
-import "strings"
+import (
+	"runtime"
+	"strings"
+)
 
 // resolvePath applies special path segments from refs and applies
 // them to base, per RFC 3986.
@@ -42,6 +45,10 @@ func resolvePath(base, ref string) string {
 	if last := src[len(src)-1]; last == "." || last == ".." {
 		// Add final slash to the joined path.
 		dst = append(dst, "")
+	}
+
+	if runtime.GOOS == "windows" {
+		return strings.TrimPrefix(strings.Join(dst, "/"), "/")
 	}
 	return "/" + strings.TrimPrefix(strings.Join(dst, "/"), "/")
 }
