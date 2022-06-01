@@ -26,7 +26,7 @@
   - simplifies complex parts of the spec not supported by all tools
   - JSON output
 - Adds a few keywords (`$inline`, `$merge`) that allow to avoid duplication of content and ease the writing of consistent documentation
-- Removes inused global schemas (under `/definitions`), parameters (under `/parameters`) and responses (under `/responses`). This reduces risk of leaking work in progress or internal details.
+- Removes unused global schemas (under `/components/schemas`), parameters (under `/components/parameters`) and responses (under `/components/responses`). This reduces risk of leaking work in progress or internal details.
 
 ## Install
 
