@@ -107,8 +107,7 @@ func processFile(pth string, encode func(interface{}) error, debug *debugFlags) 
 		return err
 	}
 
-	var tmp interface{}
-	tmp = spec
+	var tmp interface{} = spec
 
 	var trace func(string)
 	if debug.Trace {

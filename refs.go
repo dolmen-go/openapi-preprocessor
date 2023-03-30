@@ -240,8 +240,7 @@ func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error
 		if err != nil {
 			return nil, fmt.Errorf("can't load %q: %v", targetLoc.Path, err)
 		}
-		var itf interface{}
-		itf = doc
+		var itf interface{} = doc
 		rdoc = &itf
 		resolver.docs[targetLoc.Path] = rdoc
 	}
