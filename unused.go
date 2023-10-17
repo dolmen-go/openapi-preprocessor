@@ -56,7 +56,6 @@ func CleanUnused(rdoc *interface{}) error {
 				`/components/examples`,
 				`/components/requestBodies`,
 				`/components/headers`,
-				`/components/securitySchemes`,
 				`/components/links`,
 				`/components/callbacks`,
 			}
