@@ -25,6 +25,8 @@ func loadFile(pth string) (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
+
 	var load func(io.Reader) (map[string]interface{}, error)
 	switch filepath.Ext(pth) {
 	case ".json":
