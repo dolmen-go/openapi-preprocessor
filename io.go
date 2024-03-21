@@ -69,7 +69,15 @@ func fixMaps(v interface{}) interface{} {
 }
 
 func loadJSON(r io.Reader) (map[string]interface{}, error) {
-	return loadAny(json.NewDecoder(r))
+	dec := json.NewDecoder(r)
+	data, err := loadAny(dec)
+	if err != nil {
+		return nil, err
+	}
+	if dec.More() {
+		return nil, errors.New("unexpected data after JSON content")
+	}
+	return data, err
 }
 
 func loadAny(decoder interface{ Decode(interface{}) error }) (map[string]interface{}, error) {
