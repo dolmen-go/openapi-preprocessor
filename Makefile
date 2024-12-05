@@ -18,6 +18,12 @@ $(binary): .FORCE
 	@printf 'version: \033[1;33m%s\033[m\n' $(version)
 	$(go) build -ldflags "-X main.version=@(#)$(version)" -o $@
 
+.PHONY: upgrade-jsonptr
+
+upgrade-jsonptr: ../jsonptr/Makefile
+	$(shell $(MAKE) -C ../jsonptr go-get)
+	$(go) mod tidy
+
 install:
 	$(go) install -ldflags "-X main.version=@(#)$(version)"
 
