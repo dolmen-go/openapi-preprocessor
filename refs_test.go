@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"log"
 	"os"
 	"path/filepath"
@@ -107,7 +109,11 @@ func runExpandRefs(t testing.TB, path string) {
 		}
 
 		if !reflect.DeepEqual(out, expected) {
-			t.Errorf("output doesn't match")
+			b, err := json.Marshal(out)
+			_ = err
+			var bFmt bytes.Buffer
+			json.Indent(&bFmt, b, "", "    ")
+			t.Errorf("output doesn't match:\n%s", bFmt.String())
 		}
 	case *testing.B:
 		for i := 0; i < tb.N; i++ {
