@@ -1,6 +1,6 @@
 module github.com/dolmen-go/openapi-preprocessor
 
-go 1.19
+go 1.23
 
 require (
 	github.com/dolmen-go/jsonptr v0.0.0-20220904212016-e3f38a361346
