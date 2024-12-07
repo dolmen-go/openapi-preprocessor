@@ -3,6 +3,7 @@ package main
 import (
 	"iter"
 	"sort"
+	"strconv"
 )
 
 func sortedKeys(obj map[string]interface{}) (keys []string) {
@@ -40,6 +41,22 @@ func iterArray[T any](arr []any) iter.Seq2[int, T] {
 		for i, valueAny := range arr {
 			if value, isType := valueAny.(T); isType {
 				if !yield(i, value) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// iterArrayPtr allow to browse an array of items by casting each element to type T.
+//
+// The index of the array is given as a JSON Pointer.
+// Items which are not of type T are skipped.
+func iterArrayPtr[T any](ptr string, arr []any) iter.Seq2[string, T] {
+	return func(yield func(string, T) bool) {
+		for i, valueAny := range arr {
+			if value, isType := valueAny.(T); isType {
+				if !yield(ptr+"/"+strconv.Itoa(i), value) {
 					return
 				}
 			}
