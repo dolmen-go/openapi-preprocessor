@@ -32,7 +32,7 @@
 
 ### Install from source
 
-A [Go development environment](https://golang.org/doc/install#install) is required. Go 1.12+ recommended.
+A [Go 1.23+ development environment](https://go.dev/doc/install#install) is required.
 
 Build `openapi-preprocessor` binary and install in `$GOPATH/bin`:
 
