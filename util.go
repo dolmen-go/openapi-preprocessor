@@ -178,7 +178,7 @@ func iterSecurity(ptr string, doc map[string]any) iter.Seq2[string, map[string]a
 					}
 				}
 			*/
-			iterArrayPtr[map[string]any](ptr, opSec)(yield)
+			iterArrayPtr[map[string]any](ptr+"/security", opSec)(yield)
 		}
 	}
 }
