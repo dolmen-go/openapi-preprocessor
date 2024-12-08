@@ -115,6 +115,29 @@ func CleanUnused(rdoc *interface{}) error {
 			return err
 		}
 
+		// If there are securitySchemes components, look for references.
+		if secSchemesAny, err := jsonptr.Get(*rdoc, `/components/securitySchemes`); err == nil {
+			if secSchemes, isObj := secSchemesAny.(map[string]any); isObj && len(secSchemes) > 0 {
+
+				markUsedSecuritySchemes := func(ptr string, doc map[string]any) {
+					for _, req := range iterSecurity(ptr, doc) {
+						// https://spec.openapis.org/oas/v3.1.1.html#security-requirement-object
+						for name := range req {
+							// fmt.Println("used: " + `/components/securitySchemes/` + jsonptr.EscapeString(name))
+							// TODO: signal if the securityScheme is not present in /components/securitySchemes
+							delete(unused, `/components/securitySchemes/`+jsonptr.EscapeString(name))
+						}
+					}
+				}
+
+				markUsedSecuritySchemes(``, root) // process /security
+				// https://spec.openapis.org/oas/v3.1.1.html#operation-object
+				for ptr, op := range iterOperations(root) {
+					markUsedSecuritySchemes(ptr, op) // process /paths/<path>/<method>/security
+				}
+			}
+		}
+
 	nextUnused:
 		for p := range unused {
 			// Look for deep references in unused schemas
@@ -135,6 +158,7 @@ func CleanUnused(rdoc *interface{}) error {
 	removeEmptyObject(rdoc, `/components/schemas`)
 	removeEmptyObject(rdoc, `/components/parameters`)
 	removeEmptyObject(rdoc, `/components/responses`)
+	removeEmptyObject(rdoc, `/components/securitySchemes`)
 	removeEmptyObject(rdoc, `/components`)
 	removeEmptyObject(rdoc, `/definitions`)
 	removeEmptyObject(rdoc, `/parameters`)
