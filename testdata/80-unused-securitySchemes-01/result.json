@@ -1,0 +1,43 @@
+{
+    "openapi": "3.1.1",
+    "info": {
+        "version": "0.0.1"
+    },
+    "security": [
+        {},
+        {
+            "api-key": []
+        }
+    ],
+    "paths": {
+        "/": {
+            "get": {
+                "responses": {
+                    "404": {
+                        "description": "Not found."
+                    }
+                },
+                "security": [
+                    {
+                        "api-key-cookie": []
+                    },
+                    {}
+                ]
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "api-key": {
+                "in": "header",
+                "name": "Api-Key",
+                "type": "apiKey"
+            },
+            "api-key-cookie": {
+                "in": "cookie",
+                "name": "apiKey",
+                "type": "apiKey"
+            }
+        }
+    }
+}

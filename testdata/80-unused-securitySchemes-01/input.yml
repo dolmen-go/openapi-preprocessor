@@ -1,0 +1,32 @@
+---
+openapi: "3.1.1"
+info:
+  version: "0.0.1"
+security:
+  - {}
+  - {
+    "api-key": []
+  }
+paths:
+  /:
+    get:
+      responses:
+        404:
+          description: Not found.
+      security:
+        - { "api-key-cookie": [] }
+        - {}
+components:
+  securitySchemes:
+    unused:
+      type: apiKey
+      in: header
+      name: unused
+    api-key:
+      type: apiKey
+      in: header
+      name: Api-Key
+    api-key-cookie:
+      type: apiKey
+      in: cookie
+      name: apiKey
