@@ -70,28 +70,71 @@ func seq2Noop[K any, V any](yield func(K, V) bool) {
 	return
 }
 
+func iterObjectPtr[T any](ptr string, obj map[string]any) iter.Seq2[string, T] {
+	if len(obj) == 0 {
+		return seq2Noop[string, T]
+	}
+
+	return func(yield func(string, T) bool) {
+		for key, valueAny := range obj {
+			if value, isType := valueAny.(T); isType {
+				if !yield(ptr+"/"+jsonptr.EscapeString(key), value) {
+					return
+				}
+			}
+		}
+	}
+}
+
+func propertyPtr[T any](ptr string, doc map[string]any, prop string) (string, T, bool) {
+	valueAny, hasProp := doc[prop]
+	if !hasProp {
+		var v T
+		return "", v, false
+	}
+	value, ok := valueAny.(T)
+	if !ok {
+		var v T
+		return "", v, false
+	}
+	return ptr + "/" + jsonptr.EscapeString(prop), value, true
+}
+
+func iterPropertyPtr[T any](ptr string, doc map[string]any, prop string) iter.Seq2[string, T] {
+	valueAny, hasProp := doc[prop]
+	if !hasProp {
+		return seq2Noop[string, T]
+	}
+	value, ok := valueAny.(T)
+	if !ok {
+		return seq2Noop[string, T]
+	}
+	return func(yield func(string, T) bool) {
+		yield(ptr+"/"+jsonptr.EscapeString(prop), value)
+	}
+}
+
 func iterPaths(root any) iter.Seq2[string, map[string]any] {
-	pathsAny, err := jsonptr.Get(root, `/paths`)
-	if err != nil {
+	/*
+		return func(yield func(string, map[string]any)) {
+			for _, paths := range iterPropertyPtr(``, root.(map[string]any), `paths`) {
+				for ptr, path := range iterObjectPtr[map[string]any](`/paths`, paths) {
+					if !yield(pth, path) {
+						return
+					}
+				}
+			}
+		}
+	*/
+	pathsAny, ok := (root.(map[string]any))[`paths`]
+	if !ok {
 		return seq2Noop[string, map[string]any]
 	}
 	paths, ok := pathsAny.(map[string]any)
 	if !ok {
 		return seq2Noop[string, map[string]any]
 	}
-
-	return func(yield func(string, map[string]any) bool) {
-		for path, pathSpec := range paths {
-			if p, ok := pathSpec.(map[string]any); ok {
-				if len(p) == 0 {
-					continue
-				}
-				if !yield(`/paths/`+jsonptr.EscapeString(path), p) {
-					return
-				}
-			}
-		}
-	}
+	return iterObjectPtr[map[string]any](`/paths`, paths)
 }
 
 var methods = [...]bool{
