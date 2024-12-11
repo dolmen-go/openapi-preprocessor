@@ -1,3 +1,30 @@
+// Rebuild openapi-preprocessor.1 from godoc:
+//go:generate go run github.com/lufia/godoc2man@v0.0.0-20241209075419-fff9a8c99089
+
+/*
+openapi-preprocessor process keywords in an extended version of an OpenAPI specification.
+
+# Synopsis
+
+	openapi-preprocessor [-c] [-compact-output] [-debug=trace] <spec[.yaml|.json]>
+
+	openapi-preprocessor -version
+
+# Options
+
+  - -c compact JSON output
+  - -debug=trace show trace of how the document is traversed
+
+# Preprocessor directives
+
+See [full documentation] online.
+
+# Authors
+
+  - Olivier Mengué <dolmen@cpan.org>
+
+[full documentation]: https://github.com/dolmen-go/openapi-preprocessor/blob/master/README.md#keywords
+*/
 package main
 
 import (
