@@ -1,0 +1,30 @@
+.TH openapi-preprocessor 1
+.SH NAME
+openapi-preprocessor \- process keywords in an extended version of an OpenAPI specification.
+.SH OVERVIEW
+.PP
+openapi\-preprocessor process keywords in an extended version of an OpenAPI specification.
+.SH SYNOPSIS
+.PP
+.EX
+.in +4n
+openapi\-preprocessor [\-c] [\-compact\-output] [\-debug=trace] <spec[.yaml|.json]>
+
+openapi\-preprocessor \-version
+.in
+.EE
+.SH OPTIONS
+.IP \(bu 4
+\-c compact JSON output
+.IP \(bu 4
+\-debug=trace show trace of how the document is traversed
+.SH PREPROCESSOR DIRECTIVES
+.PP
+See
+.UR "https://github.com/dolmen\-go/openapi\-preprocessor/blob/master/README.md#keywords"
+full documentation
+.UE
+online.
+.SH AUTHORS
+.IP \(bu 4
+Olivier Mengué <dolmen@cpan.org>

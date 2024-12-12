@@ -1,10 +1,11 @@
 
 binary = openapi-preprocessor
+man = $(binary).1
 go = GO111MODULE=on go
 # Go-modules versionning style
 version = $(shell TZ=UTC git log -1 '--date=format-local:%Y%m%d%H%M%S' --abbrev=12 '--pretty=tformat:v0.0.0-%cd-%h' go.mod $(shell $(go) list -f '{{$$Dir := .Dir}}{{range .GoFiles}}{{$$Dir}}/{{.}} {{end}}' ./... ))
 
-all: $(binary)
+all: $(binary) $(man)
 
 .PHONY: all test clean install .FORCE
 
@@ -23,6 +24,9 @@ $(binary): .FORCE
 upgrade-jsonptr: ../jsonptr/Makefile
 	$(shell $(MAKE) -C ../jsonptr go-get)
 	$(go) mod tidy
+
+$(man): main.go
+	go generate
 
 install:
 	$(go) install -ldflags "-X main.version=@(#)$(version)"
