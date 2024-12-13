@@ -104,7 +104,7 @@ func CleanUnused(rdoc *interface{}) error {
 			targetPtr.Grow(20)
 			target, err := targetPtr.In(root)
 			if err != nil { // should not happen if
-				return ref, err
+				return ref, fmt.Errorf("%v -> %v: %v", ptr, link, err)
 			}
 			return ref, visitRefs(target, targetPtr, visitor)
 		}
