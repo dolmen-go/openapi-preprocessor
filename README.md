@@ -15,6 +15,10 @@
 - Use advanced inlining (`$inline`, `$merge`) to remove duplication (source of inconsistencies).
 - Use advanced inlining (`$inline`, `$merge`) to produce complex schemas that share subset of properties.
 - Derivate a spec to build a new spec with altered servers settings for localhost/staging/preprod environments.
+- Derivate a spec for interoperability with processing tools (ex: apply a patch for downgrading the OpenAPI
+  version for a code generation tool that doesn't support the latest standard).
+- Derivate a spec from a partner to fix interoperability issues: enable the maintenance of a set of patches
+  to apply to the public spec releases before using them internally.
 - *Submit yours...*
 
 ## Features
