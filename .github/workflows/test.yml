@@ -1,0 +1,86 @@
+name: Test
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    strategy:
+      matrix: &test-ubuntu-matrix
+        go-version:
+          - 1.26.x
+          - 1.27.x
+        os:
+          - ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    steps: &test-steps
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Download dependencies
+        run: go mod download
+      - name: Run tests
+        run: go test -v -race ./...
+
+  test-others:
+    needs: [ test ]
+    strategy:
+      matrix:
+        go-version:
+          - 1.26.x
+          - 1.27.x
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+        exclude:
+          - *test-ubuntu-matrix
+    runs-on: ${{ matrix.os }}
+    steps: *test-steps
+
+  quality:
+    needs: [ test ]
+    strategy:
+      matrix: *test-ubuntu-matrix
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Test with JSON output, for SonarQube
+        run: go test -json ./... > .gotest.out
+
+      - name: Run tests with coverage
+        run: go test -coverprofile .coverage.out -covermode atomic ./...
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v7
+        env:
+          # https://sonarcloud.io/project/configuration/GitHubActions?id=dolmen-go_openapi-preprocessor
+          # https://github.com/dolmen-go/openapi-preprocessor/settings/secrets/actions
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          # See also sonar-project.properties
+          args: >
+            -Dsonar.go.tests.reportPaths=.gotest.out
+            -Dsonar.go.coverage.reportPaths=.coverage.out
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          disable_search: true
+          files: ./.coverage.out
+          disable_telem: true
+          fail_ci_if_error: true
+          report_type: coverage
+          # https://app.codecov.io/gh/dolmen-go/openapi-preprocessor/config/general
+          # https://github.com/dolmen-go/openapi-preprocessor/settings/secrets/actions
+          token: ${{ secrets.CODECOV_TOKEN }}
