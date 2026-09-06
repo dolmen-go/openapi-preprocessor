@@ -2,6 +2,7 @@
 
 `openapi-preprocessor` is an processing tool that gives flexibility to API documentation authors for writing OpenAPI 2.0/3.x specifications.
 
+[![Test](https://github.com/dolmen-go/openapi-preprocessor/actions/workflows/test.yml/badge.svg)](https://github.com/dolmen-go/openapi-preprocessor/actions/workflows/test.yml)
 [![Codecov](https://img.shields.io/codecov/c/github/dolmen-go/openapi-preprocessor/master.svg)](https://codecov.io/gh/dolmen-go/openapi-preprocessor/branch/master)
 
 ## Uses Cases
