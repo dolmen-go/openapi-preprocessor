@@ -118,7 +118,7 @@ func (l *loc) Index(i int) loc {
 
 func (l *loc) Rel(basePath string) loc {
 	// FIXME do not use FS dependent paths
-	rel, err := filepath.Rel(filepath.FromSlash(basePath), filepath.FromSlash(l.Path))
+	rel, err := filepath.Rel(urlPathToOSPath(basePath), urlPathToOSPath(l.Path))
 	if err != nil {
 		return *l
 	}
@@ -240,7 +240,7 @@ func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error
 	rdoc, loaded := resolver.docs[targetLoc.Path]
 	if !loaded {
 		//log.Println("Loading", &targetLoc)
-		doc, err := loadFile(filepath.FromSlash(targetLoc.Path))
+		doc, err := loadFile(urlPathToOSPath(targetLoc.Path))
 		if err != nil {
 			return nil, fmt.Errorf("can't load %q: %v", targetLoc.Path, err)
 		}
@@ -629,7 +629,7 @@ func ExpandRefs(rdoc *interface{}, docURL *url.URL, trace func(string)) error {
 
 	path := path.Clean(docURL.Path)
 	resolver := refResolver{
-		basePath: filepath.ToSlash(cwd),
+		basePath: osPathToURLPath(cwd),
 		rootPath: path,
 		docs: map[string]*interface{}{
 			path: rdoc,

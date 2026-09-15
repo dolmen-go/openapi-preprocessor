@@ -17,7 +17,7 @@ func loadURL(u *url.URL) (map[string]interface{}, error) {
 		return nil, fmt.Errorf("unsupported %q URL scheme", u.Scheme)
 	}
 
-	return loadFile(filepath.FromSlash(u.Path))
+	return loadFile(urlPathToOSPath(u.Path))
 }
 
 func loadFile(pth string) (map[string]interface{}, error) {
