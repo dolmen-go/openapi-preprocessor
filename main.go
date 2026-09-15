@@ -148,7 +148,7 @@ func processFile(pth string, encode func(interface{}) error, debug *debugFlags) 
 
 	err = ExpandRefs(&tmp, &url.URL{
 		//Scheme: "file",
-		Path: filepath.ToSlash(pth),
+		Path: osPathToURLPath(pth),
 	}, trace)
 	if err != nil {
 		return err
