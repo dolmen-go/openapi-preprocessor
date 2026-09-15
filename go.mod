@@ -20,3 +20,5 @@ require (
 )
 
 tool github.com/lufia/godoc2man
+
+replace github.com/lufia/godoc2man => github.com/dolmen-go/lufia-godoc2man.fork v0.0.0-20260913123340-79a88c315b3f
