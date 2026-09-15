@@ -210,9 +210,9 @@ func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error
 	var ptr jsonptr.Pointer
 	var err error
 
-	if i := strings.IndexByte(link, '#'); i >= 0 {
-		targetLoc.Path = link[:i]
-		targetLoc.Ptr = link[i+1:]
+	if before, after, ok := strings.Cut(link, "#"); ok {
+		targetLoc.Path = before
+		targetLoc.Ptr = after
 		ptr, err = jsonptr.Parse(targetLoc.Ptr)
 		if err != nil {
 			return nil, fmt.Errorf("%q: %v", targetLoc.Ptr, err)
