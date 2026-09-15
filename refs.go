@@ -179,6 +179,10 @@ func (e *errExpand) Error() string {
 	return e.loc.String() + ": " + e.err.Error()
 }
 
+func (e *errExpand) Unwrap() error {
+	return e.err
+}
+
 func (resolver *refResolver) Error(loc *loc, err error) error {
 	return &errExpand{loc.Rel(resolver.basePath), err}
 }
