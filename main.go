@@ -63,8 +63,8 @@ func (dbg *debugFlags) Set(s string) error {
 	if s == "" {
 		return nil
 	}
-	vals := strings.Split(s, ",")
-	for _, v := range vals {
+	vals := strings.SplitSeq(s, ",")
+	for v := range vals {
 		switch v {
 		case "trace":
 			dbg.Trace = true
