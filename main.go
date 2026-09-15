@@ -35,17 +35,19 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 )
 
-// go build -ldflags "-X main.version=@(#)$(git describe --tags --always --dirty)"
-// '@(#)' is a special tag recognized by the 'what' command
-var version = "master"
-
-func init() {
-	if len(version) > 0 && version[0] == '@' {
-		version = version[4:]
+// version returns the program version from the build info embedded by the Go
+// toolchain: the module version when installed with 'go install <module>@<version>',
+// or a pseudo-version derived from the VCS state when built from a checkout.
+func version() string {
+	bi, ok := debug.ReadBuildInfo()
+	if !ok || bi.Main.Version == "" {
+		return "(unknown)"
 	}
+	return bi.Main.Version
 }
 
 type debugFlags struct {
@@ -107,7 +109,7 @@ func _main() (int, error) {
 	flag.Parse()
 
 	if showVersion {
-		fmt.Println(version)
+		fmt.Println(version())
 		return 0, nil
 	}
 

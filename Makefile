@@ -16,8 +16,7 @@ version:
 	@echo "$(version)"
 
 $(binary): .FORCE
-	@printf 'version: \033[1;33m%s\033[m\n' $(version)
-	$(go) build -ldflags "-X main.version=@(#)$(version)" -o $@
+	$(go) build -o $@
 
 .PHONY: upgrade-jsonptr
 
@@ -29,7 +28,7 @@ $(man): main.go
 	go generate
 
 install:
-	$(go) install -ldflags "-X main.version=@(#)$(version)"
+	$(go) install
 
 test:
 	$(go) test -v ./...

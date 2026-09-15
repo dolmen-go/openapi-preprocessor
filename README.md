@@ -35,11 +35,11 @@
 
 ### Install from source
 
-A [Go 1.23+ development environment](https://go.dev/doc/install#install) is required.
+A [Go 1.26+ development environment](https://go.dev/doc/install#install) is required.
 
 Build `openapi-preprocessor` binary and install in `$GOPATH/bin`:
 
-    $ make install
+    $ go install github.com/dolmen-go/openapi-preprocessor@latest
 
 ## Usage
 
