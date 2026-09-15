@@ -1,5 +1,5 @@
 // Rebuild openapi-preprocessor.1 from godoc:
-//go:generate go run github.com/lufia/godoc2man@v0.0.0-20241209075419-fff9a8c99089
+//go:generate go tool godoc2man
 
 /*
 openapi-preprocessor process keywords in an extended version of an OpenAPI specification.
