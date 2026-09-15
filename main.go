@@ -123,7 +123,7 @@ func _main() (int, error) {
 	return 0, processFile(flag.Arg(0), enc.Encode, &debug)
 }
 
-func processFile(pth string, encode func(interface{}) error, debug *debugFlags) error {
+func processFile(pth string, encode func(any) error, debug *debugFlags) error {
 	pth, err := filepath.Abs(pth)
 	if err != nil {
 		return err
@@ -134,7 +134,7 @@ func processFile(pth string, encode func(interface{}) error, debug *debugFlags) 
 		return err
 	}
 
-	var tmp interface{} = spec
+	var tmp any = spec
 
 	var trace func(string)
 	if debug.Trace {
@@ -154,7 +154,7 @@ func processFile(pth string, encode func(interface{}) error, debug *debugFlags) 
 		return err
 	}
 
-	for _, transform := range []func(*interface{}) error{
+	for _, transform := range []func(*any) error{
 		CleanUnused,
 	} {
 		err = transform(&tmp)

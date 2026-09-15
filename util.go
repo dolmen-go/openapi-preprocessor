@@ -8,7 +8,7 @@ import (
 	"github.com/dolmen-go/jsonptr"
 )
 
-func sortedKeys(obj map[string]interface{}) (keys []string) {
+func sortedKeys(obj map[string]any) (keys []string) {
 	keys = make([]string, 0, len(obj))
 	for k := range obj {
 		keys = append(keys, k)
@@ -17,16 +17,16 @@ func sortedKeys(obj map[string]interface{}) (keys []string) {
 	return
 }
 
-func objectProp(obj map[string]interface{}, key string) (value map[string]interface{}, ok bool) {
+func objectProp(obj map[string]any, key string) (value map[string]any, ok bool) {
 	v, ok := obj[key]
 	if !ok {
 		return nil, false
 	}
-	value, ok = v.(map[string]interface{})
+	value, ok = v.(map[string]any)
 	return
 }
 
-func stringProp(obj map[string]interface{}, key string) (value string, ok bool) {
+func stringProp(obj map[string]any, key string) (value string, ok bool) {
 	v, ok := obj[key]
 	if !ok {
 		return "", false

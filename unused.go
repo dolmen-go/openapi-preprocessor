@@ -8,7 +8,7 @@ import (
 	"github.com/dolmen-go/jsonptr"
 )
 
-func removeEmptyObject(rdoc *interface{}, pointer string) {
+func removeEmptyObject(rdoc *any, pointer string) {
 	ptr, err := jsonptr.Parse(pointer)
 	if err != nil {
 		panic(fmt.Errorf("%s: %v", pointer, err))
@@ -17,12 +17,12 @@ func removeEmptyObject(rdoc *interface{}, pointer string) {
 	if err != nil {
 		return
 	}
-	parent, isObj := parentRaw.(map[string]interface{})
+	parent, isObj := parentRaw.(map[string]any)
 	if !isObj || len(parent) == 0 {
 		return
 	}
 	key := ptr[len(ptr)-1]
-	obj, isObj := parent[key].(map[string]interface{})
+	obj, isObj := parent[key].(map[string]any)
 	if isObj && len(obj) == 0 {
 		delete(parent, key)
 	}
@@ -32,9 +32,9 @@ func removeEmptyObject(rdoc *interface{}, pointer string) {
 //
 // This is an important step after ExpandRefs as some components referenced through $inline
 // or $merge have been injected and are not needed anymore.
-func CleanUnused(rdoc *interface{}) error {
+func CleanUnused(rdoc *any) error {
 
-	root, isObj := (*rdoc).(map[string]interface{})
+	root, isObj := (*rdoc).(map[string]any)
 	if !isObj {
 		return errors.New("root is not an object")
 	}
@@ -69,7 +69,7 @@ func CleanUnused(rdoc *interface{}) error {
 			if err != nil {
 				continue
 			}
-			comp, compObj := compRaw.(map[string]interface{})
+			comp, compObj := compRaw.(map[string]any)
 			if !compObj {
 				continue
 			}

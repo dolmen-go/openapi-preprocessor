@@ -25,10 +25,10 @@ func skipRef(ptr jsonptr.Pointer) bool {
 }
 
 // visitRefs visits $ref and allows to change them.
-func visitRefs(root interface{}, ptr jsonptr.Pointer, visitor func(jsonptr.Pointer, string) (string, error)) (err error) {
+func visitRefs(root any, ptr jsonptr.Pointer, visitor func(jsonptr.Pointer, string) (string, error)) (err error) {
 	//log.Println(ptr)
 	switch root := root.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		if len(root) == 0 {
 			break
 		}
@@ -50,7 +50,7 @@ func visitRefs(root interface{}, ptr jsonptr.Pointer, visitor func(jsonptr.Point
 			}
 			ptr.Up()
 		}
-	case []interface{}:
+	case []any:
 		if len(root) == 0 {
 			break
 		}
@@ -126,17 +126,17 @@ func (l *loc) Rel(basePath string) loc {
 	return loc{rel, l.Ptr}
 }
 
-type setter func(interface{})
+type setter func(any)
 
 type node struct {
-	data interface{}
+	data any
 	set  setter
 	loc  loc
 }
 
 // IsRef returns true if the node is a $ref.
 func (n *node) IsRef() bool {
-	obj, isObj := n.data.(map[string]interface{})
+	obj, isObj := n.data.(map[string]any)
 	if !isObj || obj == nil {
 		return false
 	}
@@ -149,7 +149,7 @@ func (n *node) IsRef() bool {
 
 // Ref returns the link of a $ref node.
 func (n *node) Ref() string {
-	obj, isObj := n.data.(map[string]interface{})
+	obj, isObj := n.data.(map[string]any)
 	if !isObj || obj == nil {
 		return ""
 	}
@@ -163,7 +163,7 @@ func (n *node) Ref() string {
 type refResolver struct {
 	basePath string // absolute path to make errors relative to
 	rootPath string
-	docs     map[string]*interface{} // path -> rdoc
+	docs     map[string]*any // path -> rdoc
 	visited  map[loc]bool
 	inject   map[string]string
 	inlining bool
@@ -187,7 +187,7 @@ func (resolver *refResolver) Error(loc *loc, err error) error {
 	return &errExpand{loc.Rel(resolver.basePath), err}
 }
 
-func (resolver *refResolver) Errorf(loc *loc, msg string, args ...interface{}) error {
+func (resolver *refResolver) Errorf(loc *loc, msg string, args ...any) error {
 	var err error
 	if len(args) == 0 {
 		err = errors.New(msg)
@@ -197,7 +197,7 @@ func (resolver *refResolver) Errorf(loc *loc, msg string, args ...interface{}) e
 	return resolver.Error(loc, err)
 }
 
-func (resolver *refResolver) Tracef(msg string, args ...interface{}) {
+func (resolver *refResolver) Tracef(msg string, args ...any) {
 	if resolver.trace == nil {
 		return
 	}
@@ -244,13 +244,13 @@ func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error
 		if err != nil {
 			return nil, fmt.Errorf("can't load %q: %v", targetLoc.Path, err)
 		}
-		var itf interface{} = doc
+		var itf any = doc
 		rdoc = &itf
 		resolver.docs[targetLoc.Path] = rdoc
 	}
 
 	if targetLoc.Ptr == "" {
-		return &node{*rdoc, func(data interface{}) {
+		return &node{*rdoc, func(data any) {
 			*rdoc = data
 		}, targetLoc}, nil
 	}
@@ -270,10 +270,10 @@ func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error
 				// Failed to resolve the fragment
 				return nil, err
 			}
-			if obj, isMap := doc.(map[string]interface{}); isMap {
+			if obj, isMap := doc.(map[string]any); isMap {
 				if _, isInline := obj["$inline"]; isInline {
 					//log.Printf("%#v", obj)
-					err := resolver.expand(node{obj, func(data interface{}) {
+					err := resolver.expand(node{obj, func(data any) {
 						p.Set(rdoc, data)
 					}, loc{Path: targetLoc.Path, Ptr: p.String()}})
 					if err != nil {
@@ -291,7 +291,7 @@ func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error
 		frag, _ = ptr.In(*rdoc)
 	}
 
-	return &node{frag, func(data interface{}) {
+	return &node{frag, func(data any) {
 		ptr.Set(rdoc, data)
 	}, targetLoc}, nil
 }
@@ -305,11 +305,11 @@ func (resolver *refResolver) expand(n node) error {
 		resolver.visited[n.loc] = true
 	}
 
-	if doc, isSlice := n.data.([]interface{}); isSlice {
+	if doc, isSlice := n.data.([]any); isSlice {
 		for i, v := range doc {
 			switch v.(type) {
-			case []interface{}, map[string]interface{}:
-				err := resolver.expand(node{v, func(data interface{}) {
+			case []any, map[string]any:
+				err := resolver.expand(node{v, func(data any) {
 					doc[i] = data
 				}, n.loc.Index(i)})
 				if err != nil {
@@ -319,7 +319,7 @@ func (resolver *refResolver) expand(n node) error {
 		}
 		return nil
 	}
-	obj, isObject := n.data.(map[string]interface{})
+	obj, isObject := n.data.(map[string]any)
 	if !isObject || obj == nil {
 		return nil
 	}
@@ -377,15 +377,15 @@ func (resolver *refResolver) expand(n node) error {
 	return nil
 }
 
-func (resolver *refResolver) expandProperty(parentLoc loc, obj map[string]interface{}, key string) error {
+func (resolver *refResolver) expandProperty(parentLoc loc, obj map[string]any, key string) error {
 	//log.Println("Key:", key)
-	return resolver.expand(node{obj[key], func(data interface{}) {
+	return resolver.expand(node{obj[key], func(data any) {
 		obj[key] = data
 	}, parentLoc.Property(key)})
 }
 
 // expandTagRef expands (follows) a $ref link.
-func (resolver *refResolver) expandTagRef(obj map[string]interface{}, set setter, l *loc, ref interface{}) error {
+func (resolver *refResolver) expandTagRef(obj map[string]any, set setter, l *loc, ref any) error {
 	resolver.Tracef("$ref: %s => %s", l, ref)
 	link, isString := ref.(string)
 	if !isString {
@@ -436,7 +436,7 @@ func (resolver *refResolver) expandTagRef(obj map[string]interface{}, set setter
 }
 
 // expandTagMerge expands a $merge object.
-func (resolver *refResolver) expandTagMerge(obj map[string]interface{}, set setter, l *loc, refs interface{}) error {
+func (resolver *refResolver) expandTagMerge(obj map[string]any, set setter, l *loc, refs any) error {
 	resolver.Tracef("$merge at %s", l)
 	var links []string
 	switch refs := refs.(type) {
@@ -445,7 +445,7 @@ func (resolver *refResolver) expandTagMerge(obj map[string]interface{}, set sett
 			return resolver.Errorf(l, "merging with nothing?")
 		}
 		links = []string{refs}
-	case []interface{}:
+	case []any:
 		links = make([]string, len(refs))
 		for i, v := range refs {
 			lnk, isString := v.(string)
@@ -464,8 +464,8 @@ func (resolver *refResolver) expandTagMerge(obj map[string]interface{}, set sett
 	delete(obj, "$merge")
 
 	delete(resolver.visited, *l)
-	err := resolver.expand(node{obj, func(data interface{}) {
-		obj = data.(map[string]interface{})
+	err := resolver.expand(node{obj, func(data any) {
+		obj = data.(map[string]any)
 		set(data)
 	}, *l})
 	resolver.visited[*l] = true
@@ -482,7 +482,7 @@ func (resolver *refResolver) expandTagMerge(obj map[string]interface{}, set sett
 			return err
 		}
 
-		objTarget, isObj := target.data.(map[string]interface{})
+		objTarget, isObj := target.data.(map[string]any)
 		if !isObj {
 			if len(links) == 1 {
 				return resolver.Errorf(&loc{l.Path, l.Ptr + "/$merge"}, "link must point to object")
@@ -506,7 +506,7 @@ func (resolver *refResolver) expandTagMerge(obj map[string]interface{}, set sett
 }
 
 // expandTagInline expands a $inline object.
-func (resolver *refResolver) expandTagInline(obj map[string]interface{}, set setter, l *loc, ref interface{}) error {
+func (resolver *refResolver) expandTagInline(obj map[string]any, set setter, l *loc, ref any) error {
 	resolver.Tracef("$inline: %s => %s", l, ref)
 	link, isString := ref.(string)
 	if !isString {
@@ -550,7 +550,7 @@ func (resolver *refResolver) expandTagInline(obj map[string]interface{}, set set
 
 	if len(obj) > 1 {
 		switch targetX := target.data.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			// To forbid raw '$' (because we have '$inline'), but still enable it
 			// in pointers, we use "~2" as a replacement as it is not a valid JSON Pointer
 			// sequence.
@@ -562,7 +562,7 @@ func (resolver *refResolver) expandTagInline(obj map[string]interface{}, set set
 				}
 				v := obj[k]
 				//log.Println(k)
-				err = resolver.expand(node{v, func(data interface{}) {
+				err = resolver.expand(node{v, func(data any) {
 					v = data
 				}, l.Property(k)})
 				if err != nil {
@@ -597,7 +597,7 @@ func (resolver *refResolver) expandTagInline(obj map[string]interface{}, set set
 					}
 				}
 			}
-		case []interface{}:
+		case []any:
 			// TODO
 			return resolver.Errorf(l, "inlining of array not yet implemented")
 		default:
@@ -620,7 +620,7 @@ func (resolver *refResolver) resolveAndExpand(link string, relativeTo *loc) (n *
 	return
 }
 
-func ExpandRefs(rdoc *interface{}, docURL *url.URL, trace func(string)) error {
+func ExpandRefs(rdoc *any, docURL *url.URL, trace func(string)) error {
 	if len(docURL.Fragment) > 0 {
 		panic("URL fragment unexpected for initial document")
 	}
@@ -631,7 +631,7 @@ func ExpandRefs(rdoc *interface{}, docURL *url.URL, trace func(string)) error {
 	resolver := refResolver{
 		basePath: osPathToURLPath(cwd),
 		rootPath: path,
-		docs: map[string]*interface{}{
+		docs: map[string]*any{
 			path: rdoc,
 		},
 		inject:  make(map[string]string),
@@ -643,7 +643,7 @@ func ExpandRefs(rdoc *interface{}, docURL *url.URL, trace func(string)) error {
 	// - load referenced documents
 	// - collect $ref locations pointing to external documents
 	// - replace $inline, $merge
-	err := resolver.expand(node{*rdoc, func(data interface{}) {
+	err := resolver.expand(node{*rdoc, func(data any) {
 		*rdoc = data
 	}, loc{Path: path}})
 

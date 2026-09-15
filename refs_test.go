@@ -99,8 +99,8 @@ func runExpandRefs(t testing.TB, path string) {
 
 	switch tb := t.(type) {
 	case *testing.T:
-		var out interface{}
-		err = processFile(inputPath, func(result interface{}) error {
+		var out any
+		err = processFile(inputPath, func(result any) error {
 			out = result
 			return nil
 		}, &debugFlags{})
@@ -117,7 +117,7 @@ func runExpandRefs(t testing.TB, path string) {
 		}
 	case *testing.B:
 		for i := 0; i < tb.N; i++ {
-			_ = processFile(inputPath, func(interface{}) error {
+			_ = processFile(inputPath, func(any) error {
 				return nil
 			}, &debugFlags{})
 		}
