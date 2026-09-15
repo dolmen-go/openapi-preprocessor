@@ -67,7 +67,6 @@ func iterArrayPtr[T any](ptr string, arr []any) iter.Seq2[string, T] {
 }
 
 func seq2Noop[K any, V any](yield func(K, V) bool) {
-	return
 }
 
 func iterObjectPtr[T any](ptr string, obj map[string]any) iter.Seq2[string, T] {
