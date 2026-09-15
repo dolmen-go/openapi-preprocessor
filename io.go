@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	yaml "gopkg.in/yaml.v3"
+	yaml "go.yaml.in/yaml/v3"
 )
 
 func loadURL(u *url.URL) (map[string]any, error) {
