@@ -41,6 +41,20 @@ Build `openapi-preprocessor` binary and install in `$GOPATH/bin`:
 
     $ go install github.com/dolmen-go/openapi-preprocessor@latest
 
+### Install with mise-en-place
+
+[mise-en-place](https://mise.jdx.dev/) can build and install the tool through
+its [`go` backend](https://mise.jdx.dev/dev-tools/backends/go.html) (a Go
+toolchain is installed automatically if needed).
+
+Install globally:
+
+    $ mise use -g go:github.com/dolmen-go/openapi-preprocessor@latest
+
+Or pin it as a project dependency (recorded in the project's `mise.toml`):
+
+    $ mise use go:github.com/dolmen-go/openapi-preprocessor@latest
+
 ## Usage
 
     openapi-preprocessor [<option>...] <file>
