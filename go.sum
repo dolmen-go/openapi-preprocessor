@@ -1,5 +1,5 @@
-github.com/dolmen-go/jsonptr v0.0.0-20220904212016-e3f38a361346 h1:jf/eYmfxUcjQluUjN03CNdQpaspDkCINEzi2eH8zvyw=
-github.com/dolmen-go/jsonptr v0.0.0-20220904212016-e3f38a361346/go.mod h1:+6ZQtcQuiOH4ATMF+4885rhnE3FaM++MhE7m7vM302s=
+github.com/dolmen-go/jsonptr v0.0.0-20260529085001-d6b11e72da90 h1:/Q5I4Ru8GLGO9+cDSc+YfFxfMFOSQkH2x4oEuih20DQ=
+github.com/dolmen-go/jsonptr v0.0.0-20260529085001-d6b11e72da90/go.mod h1:+6ZQtcQuiOH4ATMF+4885rhnE3FaM++MhE7m7vM302s=
 github.com/dolmen-go/lufia-godoc2man.fork v0.0.0-20260913123340-79a88c315b3f h1:smqeYAo2jNhjgVwY9WbPsRwsNQSANa9cmPV2L7RMe5w=
 github.com/dolmen-go/lufia-godoc2man.fork v0.0.0-20260913123340-79a88c315b3f/go.mod h1:Pzieq2bAKfeKpSJHqUOshqChyXgmHxl3GvxlIcCDBHk=
 github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
