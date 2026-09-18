@@ -1,5 +1,5 @@
 // Rebuild openapi-preprocessor.1 from godoc:
-//go:generate go tool godoc2man
+//go:generate go tool -modfile=tools.mod godoc2man
 
 /*
 openapi-preprocessor process keywords in an extended version of an OpenAPI specification.
