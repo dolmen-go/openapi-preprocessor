@@ -1,6 +1,6 @@
 # openapi-preprocessor
 
-`openapi-preprocessor` is an processing tool that gives flexibility to API documentation authors for writing OpenAPI 2.0/3.x specifications.
+`openapi-preprocessor` is a processing tool that gives flexibility to API documentation authors for writing OpenAPI 2.0/3.x specifications.
 
 [![Test](https://github.com/dolmen-go/openapi-preprocessor/actions/workflows/test.yml/badge.svg)](https://github.com/dolmen-go/openapi-preprocessor/actions/workflows/test.yml)
 [![Codecov](https://img.shields.io/codecov/c/github/dolmen-go/openapi-preprocessor/master.svg)](https://codecov.io/gh/dolmen-go/openapi-preprocessor/branch/master)
@@ -10,7 +10,7 @@
 - Author your OpenAPI spec in YAML but publish as JSON.
 - Split your OpenAPI spec source in multiple files for authoring, but publish a single file.
 - Build multiple specs from shared parts.
-- Merge spec generated from source code with your additional content created by hand.
+- Merge spec bits generated from source code with your additional content created by hand: a master document managed by the author, with JSON bits injected.
 - Use advanced inlining (`$inline`, `$merge`) to remove duplication (source of inconsistencies).
 - Use advanced inlining (`$inline`, `$merge`) to produce complex schemas that share subset of properties.
 - Derivate a spec to build a new spec with altered servers settings for localhost/staging/preprod environments.
@@ -67,11 +67,11 @@ Or pin it as a project dependency (recorded in the project's `mise.toml`):
     { "$ref": "<file>#<pointer>" }
     { "$ref": "#<pointer>" }
 
-`$ref` is like in OpenAPI, but it can reference content in external files using relative URLs as well as intra-document. The referenced part of the pointed document is injected into the output document.
+`$ref` is [like in OpenAPI](https://spec.openapis.org/oas/latest.html#reference-object), but it can reference content in external files using relative URLs as well as intra-document. The referenced part of the pointed document is injected into the output document.
 
 Restrictions:
 - JSON pointer location in the output document will be the same location as in the ref link. Example: `{"$ref": "external.yml#/components/parameters/Id"}` will import the content to `/components/parameters/Id`. This implies that partial files should have the same layout as a full spec (this is a feature as it enforces readability of partials).
-- other properties along `$ref` are not allowed as the semantics in JSON Schema and Swagger/OpenAPI has evolved and the support in consuming tools may vary. Use `$merge` instead that has a strict behaviour in this tool.
+- other properties along `$ref` (ex: `summary`, `description`) are NOT ([yet!](https://github.com/dolmen-go/openapi-preprocessor/issues/19)) allowed as the semantics in JSON Schema and Swagger/OpenAPI has evolved and the support in consuming tools may vary. Use `$merge` instead that has a strict behaviour in this tool.
 
 ### `$inline`
 
