@@ -1,5 +1,5 @@
-github.com/dolmen-go/jsonptr v0.0.0-20260529085001-d6b11e72da90 h1:/Q5I4Ru8GLGO9+cDSc+YfFxfMFOSQkH2x4oEuih20DQ=
-github.com/dolmen-go/jsonptr v0.0.0-20260529085001-d6b11e72da90/go.mod h1:+6ZQtcQuiOH4ATMF+4885rhnE3FaM++MhE7m7vM302s=
+github.com/dolmen-go/jsonptr v1.1.0 h1:V/yAWWFLqtcPWs9FEeCy94xoo0twVB6HWjDufo91ULM=
+github.com/dolmen-go/jsonptr v1.1.0/go.mod h1:0Qoo4GC4UlwQHZdHbkdbfEXVdDTtFDzXQa99kb09NkA=
 github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 h1:RWengNIwukTxcDr9M+97sNutRR1RKhG96O6jWumTTnw=
 github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826/go.mod h1:TaXosZuwdSHYgviHp1DAtfrULt5eUgsSMsZf+YrPgl8=
 go.yaml.in/yaml/v3 v3.0.5 h1:N6y/pJk8buWs9NY5ERU2HSMfm+IuD/OtfdAnq6kESPw=
