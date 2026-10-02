@@ -1,0 +1,55 @@
+{
+  "info": {
+    "title": "Test",
+    "version": "0.0.1"
+  },
+  "x-source": {
+    "a": {
+      "b": {
+        "c": {
+          "d": "v1",
+          "e": "v2"
+        }
+      }
+    }
+  },
+  "x-shared": {
+    "b": {
+      "c": {
+        "d": "v3"
+      }
+    }
+  },
+  "x-patched": {
+    "a": {
+      "b": {
+        "c": {
+          "d": "v100",
+          "e": "v20"
+        }
+      }
+    }
+  },
+  "x-patched-shared": {
+    "a": {
+      "b": {
+        "c": {
+          "d": "v100"
+        }
+      },
+      "k": "v0"
+    }
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "responses": {
+          "404": {
+            "description": "Not found."
+          }
+        }
+      }
+    }
+  },
+  "swagger": "2.0"
+}

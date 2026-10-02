@@ -1,0 +1,44 @@
+---
+swagger: "2.0"
+info:
+  title: Test
+  version: "0.0.1"
+x-source:
+  a:
+    b:
+      c:
+        d: v1
+        e: v2
+x-shared:
+  b:
+    c:
+      d: v3
+x-patched:
+  $inline: '#/x-source'
+  # 1. Replace /a
+  # 2. Patch /a/b (nested in patch 1)
+  # 3. Patch /a/b/c/d (nested in patch 2)
+  a:
+    b:
+      c:
+        d: v5
+        e: v6
+  a/b:
+    c:
+      d: v10
+      e: v20
+  a/b/c/d: v100
+x-patched-shared:
+  $inline: '#/x-source'
+  # 1. Replace /a with content that shares nodes with /x-shared
+  # 2. Patch /a/b/c/d: /x-shared must not be altered
+  a:
+    $merge: '#/x-shared'
+    k: v0
+  a/b/c/d: v100
+paths:
+  /:
+    get:
+      responses:
+        404:
+          description: Not found.
