@@ -1,0 +1,55 @@
+{
+  "info": {
+    "title": "Test",
+    "version": "0.0.1"
+  },
+  "x-source-array": [
+    "v0",
+    "v1",
+    {
+      "k": "v2"
+    },
+    [
+      "v3.0",
+      "v3.1"
+    ]
+  ],
+  "x-source-object": {
+    "list": [
+      "v0",
+      "v1"
+    ]
+  },
+  "x-patched-array": [
+    "p0",
+    "v1",
+    {
+      "k": "p2"
+    },
+    [
+      "p3.0",
+      "v3.1",
+      "p3.2"
+    ],
+    "p4"
+  ],
+  "x-patched-object": {
+    "list": [
+      "v0",
+      "p1",
+      "p2"
+    ]
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "responses": {
+          "404": {
+            "description": "Not found."
+          }
+        }
+      }
+    }
+  },
+  "swagger": "2.0"
+}

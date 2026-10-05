@@ -593,7 +593,7 @@ func (resolver *refResolver) expandTagInline(obj map[string]any, set setter, l *
 
 	if len(obj) > 1 {
 		switch target.data.(type) {
-		case map[string]any:
+		case map[string]any, []any:
 			patches, err := sortedPatches(obj)
 			if err != nil {
 				return resolver.Error(l, err)
@@ -612,10 +612,9 @@ func (resolver *refResolver) expandTagInline(obj map[string]any, set setter, l *
 					l2 := l.Property(p.key)
 					return resolver.Error(&l2, err)
 				}
+				// If slice, it may have been appended
+				set(target.data)
 			}
-		case []any:
-			// TODO
-			return resolver.Errorf(l, "inlining of array not yet implemented")
 		default:
 			return resolver.Errorf(l, "inlined scalar value can't be patched")
 		}

@@ -1,0 +1,38 @@
+---
+swagger: "2.0"
+info:
+  title: Test
+  version: "0.0.1"
+x-source-array:
+  - v0
+  - v1
+  - k: v2
+  - - v3.0
+    - v3.1
+x-source-object:
+  list:
+    - v0
+    - v1
+# $inline of an array, with patches
+x-patched-array:
+  $inline: '#/x-source-array'
+  # Replace an item
+  "0": p0
+  # Patch an object in the array
+  2/k: p2
+  # Patch an array in the array: replace, then append
+  3/0: p3.0
+  3/-: p3.2
+  # Append to the array
+  "-": p4
+# $inline of an object, with patches to an array it contains
+x-patched-object:
+  $inline: '#/x-source-object'
+  list/1: p1
+  list/-: p2
+paths:
+  /:
+    get:
+      responses:
+        404:
+          description: Not found.
