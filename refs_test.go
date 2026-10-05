@@ -108,9 +108,18 @@ func runExpandRefs(t testing.TB, path string) {
 			t.Fatal(err)
 		}
 
-		if !reflect.DeepEqual(out, expected) {
-			b, err := json.Marshal(out)
-			_ = err
+		b, err := json.Marshal(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Roundtrip to avoid float64/int64 issues because of YAML unserializer
+		var out2 map[string]any
+		err = json.Unmarshal(b, &out2)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !reflect.DeepEqual(out2, expected) {
 			var bFmt bytes.Buffer
 			json.Indent(&bFmt, b, "", "    ")
 			t.Errorf("output doesn't match:\n%s", bFmt.String())
