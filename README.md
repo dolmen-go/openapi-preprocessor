@@ -87,7 +87,18 @@ Restrictions:
 
 If the target of `$inline` is a `$ref` and `$inline` has overrides, the link is dereferenced recursively before inlining.
 
-Note: deep inlining (inlining a node which itself use `$inline` in its tree) might work, but will probably not (see [issue #6](https://github.com/dolmen-go/openapi-preprocessor/issues/6) as an example). Use instead `$merge` which supports it.
+Patches are applied from the shallowest to the deepest pointer, so `a` is applied before `a/b`.
+
+The target of `$inline` may also be an array: patch keys are then array indexes (ex: `"0"`,
+`"2/name"`), and `-` appends an item.
+
+Notes:
+- deep inlining (inlining a node which itself uses `$inline` in its tree) is supported. If it
+  doesn't work in some case, use `$merge` as a workaround.
+- array patching limitations:
+  - `-` is applied before indexes: a patch at the index just past the end of the source array
+    (ex: `"3"` on a 3-item array) overwrites the item appended by `-`.
+  - an index beyond the end of the array pads it with `null` items.
 
 ### `$merge`
 

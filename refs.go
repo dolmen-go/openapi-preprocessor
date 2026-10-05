@@ -630,6 +630,11 @@ func (resolver *refResolver) resolveAndExpand(link string, relativeTo *loc) (n *
 			err = resolver.Error(relativeTo, err)
 		}
 	} else {
+		set := n.set
+		n.set = func(data any) {
+			n.data = data
+			set(data)
+		}
 		err = resolver.expand(*n)
 	}
 	return
