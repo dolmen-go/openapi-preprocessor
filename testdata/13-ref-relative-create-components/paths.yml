@@ -1,0 +1,21 @@
+paths:
+  /pets:
+    get:
+      security:
+        - petsKey: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+components:
+  schemas:
+    Pet:
+      type: string
+  securitySchemes:
+    petsKey:
+      type: apiKey
+      in: header
+      name: X-Pets-Key

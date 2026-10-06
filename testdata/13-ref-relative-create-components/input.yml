@@ -1,0 +1,10 @@
+---
+# The main document has no /components: they are created to import the
+# components of the partial file
+openapi: 3.0.2
+info:
+  title: Test
+  version: "0.0.1"
+paths:
+  /pets:
+    $ref: 'paths.yml#/paths/~1pets'

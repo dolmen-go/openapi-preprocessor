@@ -172,9 +172,19 @@ type refResolver struct {
 	inlining bool
 	trace    func(string)
 
+	swagger bool // Swagger 2.0 (else OpenAPI 3.x)
+
 	// securitySchemes is the location of security schemes:
 	// "/components/securitySchemes/" (OpenAPI 3.x) or "/securityDefinitions/" (Swagger 2.0)
 	securitySchemes string
+}
+
+// swaggerComponents are the containers of reusable components in Swagger 2.0.
+var swaggerComponents = map[string]bool{
+	"definitions":         true,
+	"parameters":          true,
+	"responses":           true,
+	"securityDefinitions": true,
 }
 
 // injection is content to copy, at the same pointer, from a document to the final document.
@@ -787,7 +797,7 @@ func ExpandRefs(rdoc *any, docURL *url.URL, trace func(string)) error {
 		securitySchemes: "/components/securitySchemes/",
 	}
 	if root, isObj := (*rdoc).(map[string]any); isObj {
-		if _, isSwagger := root["swagger"]; isSwagger {
+		if _, resolver.swagger = root["swagger"]; resolver.swagger {
 			resolver.securitySchemes = "/securityDefinitions/"
 		}
 	}
@@ -905,7 +915,7 @@ func (resolver *refResolver) injectAll(rdoc *any) error {
 			return resolver.Errorf(&imp.from, "%s: conflict between content imported from %s and content from %s",
 				ptr, resolver.relPath(imp.src), resolver.relPath(base))
 		}
-		if err = setCreate(rdoc, imp.ptr, content); err != nil {
+		if err = resolver.importAt(rdoc, imp.ptr, content); err != nil {
 			return resolver.Errorf(&imp.from, "%s#%s: %v", resolver.relPath(imp.src), ptr, err)
 		}
 		injected[ptr] = imp.src
@@ -954,13 +964,31 @@ func (resolver *refResolver) linksTo(v any, base, src, ptr string) bool {
 	return false
 }
 
-// setCreate is like [jsonptr.Pointer.Set], but creates missing parent objects.
-func setCreate(rdoc *any, ptr jsonptr.Pointer, value any) error {
+// importAt stores value at ptr in the final document *rdoc.
+//
+// Missing parents are created only for a component: /components/<type>/<name>
+// (OpenAPI 3.x), or /<container>/<name> in Swagger 2.0 (container is one of
+// definitions, parameters, responses, securityDefinitions). Any other missing
+// parent is an error.
+func (resolver *refResolver) importAt(rdoc *any, ptr jsonptr.Pointer, value any) error {
+	var creatable int // Number of leading parents of ptr that may be created
+	switch {
+	case resolver.swagger:
+		if len(ptr) == 2 && swaggerComponents[ptr[0]] {
+			creatable = 1
+		}
+	case len(ptr) == 3 && ptr[0] == "components":
+		creatable = 2
+	}
+
 	for i := 1; i < len(ptr); i++ {
 		parent := ptr[:i]
 		if _, err := parent.In(*rdoc); err != nil {
 			if !errors.Is(err, jsonptr.ErrProperty) {
 				return err
+			}
+			if i > creatable {
+				return fmt.Errorf("%s doesn't exist in the final document", parent)
 			}
 			if err = parent.Set(rdoc, map[string]any{}); err != nil {
 				return err

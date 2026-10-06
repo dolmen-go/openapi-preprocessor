@@ -79,7 +79,7 @@ A link without a file (`{"$ref": "#<pointer>"}`) is relative to the file where i
 
 The same applies to the names of security schemes in security requirements (`security`): they refer to `/components/securitySchemes/<name>` (`/securityDefinitions/<name>` in Swagger 2.0) of the file where the requirement is used.
 
-Content imported into the output document must not conflict with content already there: a location can only be filled from a single file. A chain of `$ref` at the same location across files (`a.yml#/info` links to `b.yml#/info`) imports the final target.
+Content imported into the output document must not conflict with content already there: a location can only be filled from a single file. The parent of the location must exist in the output document, unless the content is a component (`/components/<type>/<name>`, or in Swagger 2.0 `/definitions/<name>`, `/parameters/<name>`, `/responses/<name>`, `/securityDefinitions/<name>`). A chain of `$ref` at the same location across files (`a.yml#/info` links to `b.yml#/info`) imports the final target.
 
 Components (under `/components`) are processed only when they are used: links in unused components are not followed (unused components are removed from the output anyway).
 

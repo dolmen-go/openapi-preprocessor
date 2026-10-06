@@ -1,0 +1,46 @@
+{
+  "definitions": {
+    "Pet": {
+      "type": "string"
+    }
+  },
+  "info": {
+    "title": "Test",
+    "version": "0.0.1"
+  },
+  "paths": {
+    "/pets": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/Pet"
+            }
+          },
+          "default": {
+            "$ref": "#/responses/Error"
+          }
+        },
+        "security": [
+          {
+            "petsKey": []
+          }
+        ]
+      }
+    }
+  },
+  "responses": {
+    "Error": {
+      "description": "Error"
+    }
+  },
+  "securityDefinitions": {
+    "petsKey": {
+      "in": "header",
+      "name": "X-Pets-Key",
+      "type": "apiKey"
+    }
+  },
+  "swagger": "2.0"
+}
