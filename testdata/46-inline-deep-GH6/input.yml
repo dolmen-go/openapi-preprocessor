@@ -1,0 +1,72 @@
+openapi: 3.0.2
+info:
+  title: Hello
+  version: 1.0.0
+components:
+  schemas:
+    String1:
+      type: string
+      default: Hello1
+      minLength: 22
+      $inline: "#/components/schemas/String2"
+    Array1:
+      type: array
+      items:
+        type: string
+      nullable: True
+    String2:
+      type: string
+      title: String2000
+      default: Hello2
+      $inline: '#/components/schemas/String3'
+    String3:
+      default: Hello3
+      description: 'My name is string1.raml'
+      $inline: '#/components/schemas/String4'
+    String4:
+      default: Hello4
+      enum:
+      - Hello
+      - World
+      - Why
+paths:
+  /pets:
+    get:
+      description: Returns all pets from the system that the user has access to
+      responses:
+        '200':
+          description: A list of pets.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/String1'
+  /cats2:
+    get:
+      description: Returns all pets from the system that the user has access to
+      responses:
+        '200':
+          description: A list of pets.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/String2'
+  /cats3:
+    get:
+      description: Returns all pets from the system that the user has access to
+      responses:
+        '200':
+          description: A list of pets.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/String3'
+  /cats4:
+    get:
+      description: Returns all pets from the system that the user has access to
+      responses:
+        '200':
+          description: A list of pets.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/String4'

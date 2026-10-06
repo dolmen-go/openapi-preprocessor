@@ -1,12 +1,14 @@
 package main
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -505,6 +507,47 @@ func (resolver *refResolver) expandTagMerge(obj map[string]any, set setter, l *l
 	return nil
 }
 
+var replDollar = strings.NewReplacer("~2", "$")
+
+type patch struct {
+	key   string
+	ptr   jsonptr.Pointer
+	value any
+}
+
+func sortedPatches(obj map[string]any) ([]*patch, error) {
+	patches := make([]*patch, 0, len(obj))
+	for k, v := range obj {
+		if len(k) > 0 && k[0] == '$' {
+			continue
+		}
+		// To forbid raw '$' (because we have '$inline'), but still enable it
+		// in pointers, we use "~2" as a replacement as it is not a valid JSON Pointer
+		// sequence.
+		ptr, err := jsonptr.Parse("/" + replDollar.Replace(k))
+		if err != nil {
+			return nil, fmt.Errorf("patch %q: %w", k, err)
+		}
+		patches = append(patches, &patch{
+			key:   k,
+			ptr:   ptr,
+			value: v,
+		})
+	}
+	slices.SortStableFunc(patches, func(a, b *patch) int {
+		if x := cmp.Compare(len(a.ptr), len(b.ptr)); x != 0 {
+			return x
+		}
+		for i := range len(a.ptr) {
+			if x := cmp.Compare(a.ptr[i], b.ptr[i]); x != 0 {
+				return x
+			}
+		}
+		return cmp.Compare(a.key, b.key) // "~2" vs "$"
+	})
+	return patches, nil
+}
+
 // expandTagInline expands a $inline object.
 func (resolver *refResolver) expandTagInline(obj map[string]any, set setter, l *loc, ref any) error {
 	resolver.Tracef("$inline: %s => %s", l, ref)
@@ -549,57 +592,29 @@ func (resolver *refResolver) expandTagInline(obj map[string]any, set setter, l *
 	//log.Printf("xxx %#v", target.data)
 
 	if len(obj) > 1 {
-		switch targetX := target.data.(type) {
-		case map[string]any:
-			// To forbid raw '$' (because we have '$inline'), but still enable it
-			// in pointers, we use "~2" as a replacement as it is not a valid JSON Pointer
-			// sequence.
-			replDollar := strings.NewReplacer("~2", "$")
-			var prefixes []string
-			for _, k := range sortedKeys(obj) {
-				if len(k) > 0 && k[0] == '$' { // skip $inline
-					continue
-				}
-				v := obj[k]
-				//log.Println(k)
+		switch target.data.(type) {
+		case map[string]any, []any:
+			patches, err := sortedPatches(obj)
+			if err != nil {
+				return resolver.Error(l, err)
+			}
+			for _, p := range patches {
+				v := p.value
 				err = resolver.expand(node{v, func(data any) {
 					v = data
-				}, l.Property(k)})
+				}, l.Property(p.key)})
 				if err != nil {
 					return err
 				}
-				ptr := "/" + replDollar.Replace(k)
-				if !strings.ContainsAny(k, "/") {
-					prop, err := jsonptr.UnescapeString(ptr[1:])
-					if err != nil {
-						return resolver.Errorf(l, "%q: %v", k, err)
-					}
-					targetX[prop] = v
-					prefixes = append(prefixes[:0], ptr)
-				} else {
-					// If patching a previous patch, we want to preserve the source
-					// Find the previous longest prefix of ptr, if any, and clone the tree
-					i := len(prefixes) - 1
-					for i > 0 {
-						p := prefixes[i]
-						if strings.HasPrefix(ptr, p+"/") {
-							p = p[:len(p)-1]
-							t, _ := jsonptr.Get(target, p)
-							t = deepcopy.Copy(t)
-							jsonptr.Set(&target.data, p, t)
-							break
-						}
-						i--
-					}
-					prefixes = append(prefixes[:i+1], ptr) // clear longer prefixes and append this one
-					if err := jsonptr.Set(&target.data, ptr, v); err != nil {
-						return resolver.Error(&loc{l.Path, l.Ptr + "/" + k}, err)
-					}
+				// Preserve the source, as it may be patched later
+				v = deepcopy.Copy(v)
+				if err := p.ptr.Set(&target.data, v); err != nil {
+					l2 := l.Property(p.key)
+					return resolver.Error(&l2, err)
 				}
+				// If slice, it may have been appended
+				set(target.data)
 			}
-		case []any:
-			// TODO
-			return resolver.Errorf(l, "inlining of array not yet implemented")
 		default:
 			return resolver.Errorf(l, "inlined scalar value can't be patched")
 		}
@@ -615,6 +630,11 @@ func (resolver *refResolver) resolveAndExpand(link string, relativeTo *loc) (n *
 			err = resolver.Error(relativeTo, err)
 		}
 	} else {
+		set := n.set
+		n.set = func(data any) {
+			n.data = data
+			set(data)
+		}
 		err = resolver.expand(*n)
 	}
 	return
