@@ -1,0 +1,28 @@
+---
+# Components are expanded only when used: unused components are not
+# expanded, so their links are not followed (and not even checked).
+openapi: 3.0.2
+info:
+  title: Test
+  version: "0.0.1"
+paths:
+  /:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Used'
+components:
+  schemas:
+    Used:
+      type: string
+    UnusedBrokenRef:
+      $ref: '#/components/schemas/Missing'
+    UnusedMissingFile:
+      $ref: 'missing.yml#/components/schemas/UnusedMissingFile'
+    UnusedInline:
+      $inline: 'missing.yml#/components/schemas/UnusedInline'
+      description: Patched

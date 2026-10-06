@@ -340,37 +340,13 @@ func (resolver *refResolver) expand(n node) error {
 		return resolver.expandTagInline(obj, n.set, &n.loc, ref)
 	}
 
-	keys := sortedKeys(obj)
-
-	expandFirst := func(prop string) error {
-		if obj, hasProp := objectProp(obj, prop); hasProp {
-			if err := resolver.expandProperty(n.loc, obj, prop); err != nil {
-				return err
-			}
-			// Remove prop from keys
-			for i, k := range keys {
-				if k == prop {
-					keys = append(keys[:i], keys[i+1:]...)
-					break
-				}
-			}
+	for _, k := range sortedKeys(obj) {
+		// /components are expanded only on demand (when targeted by a link)
+		// because expanding unused components would inject their external
+		// content into the final document.
+		if k == "components" && n.loc.Ptr == "" {
+			continue
 		}
-		return nil
-	}
-
-	if n.loc.Ptr == "" {
-		// Resolve /components first
-		if err := expandFirst("components"); err != nil {
-			return err
-		}
-	} else if n.loc.Ptr == "/components" {
-		// Resolve /components/schemas first
-		if err := expandFirst("schemas"); err != nil {
-			return err
-		}
-	}
-
-	for _, k := range keys {
 		if err := resolver.expandProperty(n.loc, obj, k); err != nil {
 			return err
 		}

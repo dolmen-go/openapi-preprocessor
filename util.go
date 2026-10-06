@@ -17,15 +17,6 @@ func sortedKeys(obj map[string]any) (keys []string) {
 	return
 }
 
-func objectProp(obj map[string]any, key string) (value map[string]any, ok bool) {
-	v, ok := obj[key]
-	if !ok {
-		return nil, false
-	}
-	value, ok = v.(map[string]any)
-	return
-}
-
 func stringProp(obj map[string]any, key string) (value string, ok bool) {
 	v, ok := obj[key]
 	if !ok {
