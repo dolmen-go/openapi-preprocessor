@@ -1,0 +1,3 @@
+---
+info:
+  $ref: 'info-2.yml#/info'

@@ -167,9 +167,75 @@ type refResolver struct {
 	rootPath string
 	docs     map[string]*any // path -> rdoc
 	visited  map[loc]bool
-	inject   map[string]string
+	inject   map[string]injection // pointer in the final document -> source
+	deferred []deferredLink
 	inlining bool
 	trace    func(string)
+
+	// securitySchemes is the location of security schemes:
+	// "/components/securitySchemes/" (OpenAPI 3.x) or "/securityDefinitions/" (Swagger 2.0)
+	securitySchemes string
+}
+
+// injection is content to copy, at the same pointer, from a document to the final document.
+type injection struct {
+	src  string // path of the source document
+	from loc    // location of the link which requires the injection
+}
+
+// deferredLink is a relative link which target doesn't exist in the document where
+// it is used: its resolution is deferred to the final document.
+type deferredLink struct {
+	link string // "#<pointer>"
+	from loc    // location of the link
+}
+
+// operationMethods are the keys of operations in a Path Item Object.
+var operationMethods = map[string]bool{
+	"get":     true,
+	"put":     true,
+	"post":    true,
+	"delete":  true,
+	"options": true,
+	"head":    true,
+	"patch":   true,
+	"trace":   true,
+	"query":   true, // OpenAPI 3.2
+}
+
+// isSecurityPtr reports whether ptr is the location of a list of Security Requirement Objects:
+// at the root of a document or in an Operation Object.
+func isSecurityPtr(ptr jsonptr.Pointer) bool {
+	n := len(ptr)
+	if n == 0 || ptr[n-1] != "security" {
+		return false
+	}
+	if n == 1 {
+		return true
+	}
+	op := ptr[:n-1]
+	if !operationMethods[op[len(op)-1]] {
+		return false
+	}
+	// /paths/{path}/{method}, /webhooks/{name}/{method}, /components/pathItems/{name}/{method}
+	if len(op) >= 3 {
+		switch op[len(op)-3] {
+		case "paths", "webhooks", "pathItems":
+			return true
+		}
+	}
+	// .../callbacks/{name}/{expression}/{method}
+	return len(op) >= 4 && op[len(op)-4] == "callbacks"
+}
+
+// isNotFound reports whether err (from resolve) is because the target of the link doesn't exist.
+func isNotFound(err error) bool {
+	var errExp *errExpand
+	if errors.As(err, &errExp) {
+		// Failure while expanding something else on the way
+		return false
+	}
+	return errors.Is(err, jsonptr.ErrProperty) || errors.Is(err, jsonptr.ErrIndex)
 }
 
 type errExpand struct {
@@ -308,6 +374,11 @@ func (resolver *refResolver) expand(n node) error {
 	}
 
 	if doc, isSlice := n.data.([]any); isSlice {
+		if isSecurityPtr(jsonptr.MustParse(n.loc.Ptr)) {
+			if err := resolver.expandSecurity(n.loc, doc); err != nil {
+				return err
+			}
+		}
 		for i, v := range doc {
 			switch v.(type) {
 			case []any, map[string]any:
@@ -388,8 +459,8 @@ func (resolver *refResolver) expandTagRef(obj map[string]any, set setter, l *loc
 		}
 	}
 
-	target, err := resolver.resolveAndExpand(link, l)
-	if err != nil {
+	target, err := resolver.importLink(link, l)
+	if err != nil || target == nil { // target == nil: deferred
 		return err
 	}
 	if l.Ptr != target.loc.Ptr && strings.HasPrefix(l.Ptr+"/", target.loc.Ptr+"/") {
@@ -399,17 +470,91 @@ func (resolver *refResolver) expandTagRef(obj map[string]any, set setter, l *loc
 		return resolver.Errorf(l, "injection of %q at path %q will create a circular link (tip: use $inline)", target.loc, target.loc.Ptr)
 	}
 
-	if resolver.inject != nil {
-		if target.loc.Path != resolver.rootPath {
-			if src := resolver.inject[l.Ptr]; src != "" && src != target.loc.Path {
-				// TODO we should also save l in resolver.inject to be able to signal the location
-				// of $ref that provoke the injection
-				return resolver.Errorf(l, "import fragment %q is imported from %q and %q", link, src, target.loc.Path)
+	return nil
+}
+
+// importLink resolves link from l, expands its target and records its injection into
+// the final document.
+//
+// If link is relative and its target doesn't exist, the link is deferred and the returned node is nil.
+func (resolver *refResolver) importLink(link string, l *loc) (*node, error) {
+	target, err := resolver.resolve(link, l)
+	if err != nil {
+		if isRelativeLink(link) && isNotFound(err) {
+			resolver.deferLink(link, l)
+			return nil, nil
+		}
+		if _, isExpandErr := err.(*errExpand); !isExpandErr {
+			err = resolver.Error(l, err)
+		}
+		return nil, err
+	}
+	if err = resolver.expandNode(target); err != nil {
+		return nil, err
+	}
+	if err = resolver.recordInjection(target, l, link); err != nil {
+		return nil, err
+	}
+	return target, nil
+}
+
+// isRelativeLink reports whether link is relative to the document where it is used ("#<pointer>").
+//
+// The target of a relative link is imported from that document if it exists there. Else its
+// resolution is deferred to the final document (see [refResolver.deferLink]).
+func isRelativeLink(link string) bool {
+	return len(link) > 0 && link[0] == '#'
+}
+
+// deferLink records a relative link which target doesn't exist in the document
+// where it is used. It will be resolved in the final document.
+func (resolver *refResolver) deferLink(link string, l *loc) {
+	resolver.Tracef("deferred: %s => %s", l, link)
+	resolver.deferred = append(resolver.deferred, deferredLink{link: link, from: *l})
+}
+
+// recordInjection records that target, linked from l, must be copied to the final document
+// at the same pointer, if it isn't already in the root document.
+func (resolver *refResolver) recordInjection(target *node, l *loc, link string) error {
+	if target.loc.Path == resolver.rootPath {
+		return nil
+	}
+	ptr, src := target.loc.Ptr, target.loc.Path
+	if prev, exists := resolver.inject[ptr]; exists && prev.src != src {
+		// Chain of $ref at the same pointer: keep the final target
+		if resolver.linksTo(target.data, src, prev.src, ptr) {
+			return nil
+		}
+		prevContent, err := jsonptr.Get(*resolver.docs[prev.src], ptr)
+		if err != nil || !resolver.linksTo(prevContent, prev.src, src, ptr) {
+			return resolver.Errorf(l, "import fragment %q is imported from %s and %s (from %s)",
+				link, resolver.relPath(prev.src), resolver.relPath(src), prev.from.Rel(resolver.basePath))
+		}
+	} else if exists {
+		return nil
+	}
+	resolver.inject[ptr] = injection{src: src, from: *l}
+	return nil
+}
+
+// expandSecurity expands the security schemes named in a list of Security Requirement Objects.
+//
+// A name is a link relative to the document where the requirement is used.
+func (resolver *refResolver) expandSecurity(l loc, reqs []any) error {
+	for i, req := range reqs {
+		req, isObj := req.(map[string]any)
+		if !isObj {
+			continue
+		}
+		lReq := l.Index(i)
+		for _, name := range sortedKeys(req) {
+			link := "#" + resolver.securitySchemes + jsonptr.EscapeString(name)
+			lName := lReq.Property(name)
+			if _, err := resolver.importLink(link, &lName); err != nil {
+				return err
 			}
-			resolver.inject[l.Ptr] = target.loc.Path
 		}
 	}
-
 	return nil
 }
 
@@ -606,14 +751,19 @@ func (resolver *refResolver) resolveAndExpand(link string, relativeTo *loc) (n *
 			err = resolver.Error(relativeTo, err)
 		}
 	} else {
-		set := n.set
-		n.set = func(data any) {
-			n.data = data
-			set(data)
-		}
-		err = resolver.expand(*n)
+		err = resolver.expandNode(n)
 	}
 	return
+}
+
+// expandNode expands n and updates n.data if the node is replaced (ex: $inline).
+func (resolver *refResolver) expandNode(n *node) error {
+	set := n.set
+	n.set = func(data any) {
+		n.data = data
+		set(data)
+	}
+	return resolver.expand(*n)
 }
 
 func ExpandRefs(rdoc *any, docURL *url.URL, trace func(string)) error {
@@ -630,14 +780,22 @@ func ExpandRefs(rdoc *any, docURL *url.URL, trace func(string)) error {
 		docs: map[string]*any{
 			path: rdoc,
 		},
-		inject:  make(map[string]string),
+		inject:  make(map[string]injection),
 		visited: make(map[loc]bool),
 		trace:   trace,
+
+		securitySchemes: "/components/securitySchemes/",
+	}
+	if root, isObj := (*rdoc).(map[string]any); isObj {
+		if _, isSwagger := root["swagger"]; isSwagger {
+			resolver.securitySchemes = "/securityDefinitions/"
+		}
 	}
 
 	// First step:
 	// - load referenced documents
-	// - collect $ref locations pointing to external documents
+	// - collect links to content to import from other documents
+	// - collect relative links which target doesn't exist where they are used
 	// - replace $inline, $merge
 	err := resolver.expand(node{*rdoc, func(data any) {
 		*rdoc = data
@@ -648,24 +806,44 @@ func ExpandRefs(rdoc *any, docURL *url.URL, trace func(string)) error {
 	}
 
 	// Second step:
-	// Inject content from external documents pointed by $ref.
-	// The inject path is the same as the path in the source doc.
-	for ptr, sourcePath := range resolver.inject {
-		// log.Println(ptr, sourcePath)
-
-		if _, err := jsonptr.Get(*rdoc, ptr); err != nil {
-			return fmt.Errorf("%s: content replaced from %s", ptr, sourcePath)
+	// Expand the targets of deferred links that exist in the root document
+	// (as /components are expanded only on demand). This may defer more links.
+	rootLoc := loc{Path: path}
+	for i := 0; i < len(resolver.deferred); i++ {
+		d := resolver.deferred[i]
+		if d.from.Path == path {
+			continue // Already not found in the root document
 		}
-		target, err := jsonptr.Get(*resolver.docs[sourcePath], ptr)
+		target, err := resolver.resolve(d.link, &rootLoc)
 		if err != nil {
-			return fmt.Errorf("%s#%s has disappeared after replacement of $inline and $merge: %v", sourcePath, ptr, err)
+			if isNotFound(err) {
+				continue
+			}
+			if _, isExpandErr := err.(*errExpand); !isExpandErr {
+				err = resolver.Error(&d.from, err)
+			}
+			return err
 		}
-		if err = jsonptr.Set(rdoc, ptr, target); err != nil {
-			return fmt.Errorf("%s#%s: %v", sourcePath, ptr, err)
+		if err = resolver.expandNode(target); err != nil {
+			return err
 		}
 	}
 
 	// Third step:
+	// Inject content imported from other documents, at the same pointer.
+	if err = resolver.injectAll(rdoc); err != nil {
+		return err
+	}
+
+	// Fourth step:
+	// Check that the targets of deferred links exist in the final document.
+	for _, d := range resolver.deferred {
+		if _, err := jsonptr.Get(*rdoc, d.link[1:]); err != nil {
+			return resolver.Errorf(&d.from, "%q: not found in the final document", d.link)
+		}
+	}
+
+	// Fifth step:
 	// As some $ref pointed to external documents we have to fix them to make the references
 	// local.
 	if len(resolver.docs) > 1 {
@@ -678,5 +856,116 @@ func ExpandRefs(rdoc *any, docURL *url.URL, trace func(string)) error {
 		})
 	}
 
-	return err
+	return nil
+}
+
+// injectAll copies content imported from other documents into the final document *rdoc,
+// at the same pointer.
+//
+// The location must either not exist (missing parents are created) or be a $ref to
+// the imported content. Else this is a conflict.
+func (resolver *refResolver) injectAll(rdoc *any) error {
+	type imported struct {
+		ptr jsonptr.Pointer
+		injection
+	}
+	imports := make([]imported, 0, len(resolver.inject))
+	for p, inj := range resolver.inject {
+		imports = append(imports, imported{jsonptr.MustParse(p), inj})
+	}
+	// Shallow pointers first, so we know where the content of deeper pointers comes from
+	slices.SortFunc(imports, func(a, b imported) int {
+		if x := cmp.Compare(len(a.ptr), len(b.ptr)); x != 0 {
+			return x
+		}
+		return slices.Compare(a.ptr, b.ptr)
+	})
+
+	injected := make(map[string]string, len(imports)) // pointer -> source document
+	for _, imp := range imports {
+		ptr := imp.ptr.String()
+
+		// The document where the current content at ptr comes from
+		base := resolver.rootPath
+		for i := len(imp.ptr) - 1; i >= 0; i-- {
+			if src, isInjected := injected[imp.ptr[:i].String()]; isInjected {
+				base = src
+				break
+			}
+		}
+		if base == imp.src {
+			continue // Already imported with a parent
+		}
+
+		content, err := imp.ptr.In(*resolver.docs[imp.src])
+		if err != nil {
+			return resolver.Errorf(&imp.from, "%s#%s has disappeared after replacement of $inline and $merge: %v", resolver.relPath(imp.src), ptr, err)
+		}
+		if current, err := imp.ptr.In(*rdoc); err == nil && !resolver.linksTo(current, base, imp.src, ptr) {
+			return resolver.Errorf(&imp.from, "%s: conflict between content imported from %s and content from %s",
+				ptr, resolver.relPath(imp.src), resolver.relPath(base))
+		}
+		if err = setCreate(rdoc, imp.ptr, content); err != nil {
+			return resolver.Errorf(&imp.from, "%s#%s: %v", resolver.relPath(imp.src), ptr, err)
+		}
+		injected[ptr] = imp.src
+	}
+	return nil
+}
+
+// relPath returns the path of a document relative to the base path, for error messages.
+func (resolver *refResolver) relPath(pth string) string {
+	l := loc{Path: pth}
+	return l.Rel(resolver.basePath).Path
+}
+
+// linksTo reports whether v, from document base, is a $ref to src#ptr, directly or
+// through a chain of $ref at the same pointer in other documents.
+func (resolver *refResolver) linksTo(v any, base, src, ptr string) bool {
+	for range len(resolver.docs) { // Bound the chain to avoid loops
+		obj, isObj := v.(map[string]any)
+		if !isObj {
+			return false
+		}
+		link, isString := obj["$ref"].(string)
+		if !isString {
+			return false
+		}
+		file, frag, _ := strings.Cut(link, "#")
+		if frag != ptr || file == "" {
+			return false
+		}
+		file, err := url.PathUnescape(file)
+		if err != nil {
+			return false
+		}
+		base = resolvePath(base, file)
+		if base == src {
+			return true
+		}
+		rdoc, isLoaded := resolver.docs[base]
+		if !isLoaded {
+			return false
+		}
+		if v, err = jsonptr.Get(*rdoc, ptr); err != nil {
+			return false
+		}
+	}
+	return false
+}
+
+// setCreate is like [jsonptr.Pointer.Set], but creates missing parent objects.
+func setCreate(rdoc *any, ptr jsonptr.Pointer, value any) error {
+	for i := 1; i < len(ptr); i++ {
+		parent := ptr[:i]
+		if _, err := parent.In(*rdoc); err != nil {
+			if !errors.Is(err, jsonptr.ErrProperty) {
+				return err
+			}
+			if err = parent.Set(rdoc, map[string]any{}); err != nil {
+				return err
+			}
+		}
+	}
+	return ptr.Set(rdoc, value)
 }

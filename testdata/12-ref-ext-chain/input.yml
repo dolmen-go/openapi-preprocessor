@@ -1,0 +1,6 @@
+---
+# A chain of $ref at the same pointer across documents imports the final target
+openapi: 3.0.2
+info:
+  $ref: 'info-1.yml#/info'
+paths: {}

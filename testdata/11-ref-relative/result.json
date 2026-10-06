@@ -1,0 +1,71 @@
+{
+  "components": {
+    "schemas": {
+      "Error": {
+        "type": "string"
+      },
+      "Pet": {
+        "type": "string"
+      },
+      "Pets": {
+        "items": {
+          "$ref": "#/components/schemas/Pet"
+        },
+        "type": "array"
+      }
+    },
+    "securitySchemes": {
+      "petsKey": {
+        "in": "header",
+        "name": "X-Pets-Key",
+        "type": "apiKey"
+      },
+      "rootKey": {
+        "in": "header",
+        "name": "X-Root-Key",
+        "type": "apiKey"
+      }
+    }
+  },
+  "info": {
+    "title": "Test",
+    "version": "0.0.1"
+  },
+  "openapi": "3.0.2",
+  "paths": {
+    "/pets": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pets"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "petsKey": []
+          },
+          {
+            "rootKey": []
+          }
+        ]
+      }
+    }
+  }
+}

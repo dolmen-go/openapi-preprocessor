@@ -1,0 +1,34 @@
+paths:
+  /pets:
+    get:
+      security:
+        - petsKey: []
+        - rootKey: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                # Defined below: imported into the final document
+                $ref: '#/components/schemas/Pets'
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                # Not defined below: resolved in the final document
+                $ref: '#/components/schemas/Error'
+components:
+  schemas:
+    Pets:
+      type: array
+      items:
+        $ref: '#/components/schemas/Pet'
+    Pet:
+      type: string
+  securitySchemes:
+    petsKey:
+      type: apiKey
+      in: header
+      name: X-Pets-Key
