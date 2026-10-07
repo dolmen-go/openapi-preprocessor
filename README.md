@@ -73,6 +73,16 @@ Restrictions:
 - JSON pointer location in the output document will be the same location as in the ref link. Example: `{"$ref": "external.yml#/components/parameters/Id"}` will import the content to `/components/parameters/Id`. This implies that partial files should have the same layout as a full spec (this is a feature as it enforces readability of partials).
 - other properties along `$ref` (ex: `summary`, `description`) are NOT ([yet!](https://github.com/dolmen-go/openapi-preprocessor/issues/19)) allowed as the semantics in JSON Schema and Swagger/OpenAPI has evolved and the support in consuming tools may vary. Use `$merge` instead that has a strict behaviour in this tool.
 
+A link without a file (`{"$ref": "#<pointer>"}`) is relative to the file where it is used. In a partial file:
+- if the target exists in that file, it is imported into the output document. A partial file can so bring its own components.
+- else, the target is looked up in the output document, once fully assembled. A partial file can so use components defined in the main document or in other partial files.
+
+The same applies to the names of security schemes in security requirements (`security`): they refer to `/components/securitySchemes/<name>` (`/securityDefinitions/<name>` in Swagger 2.0) of the file where the requirement is used.
+
+Content imported into the output document must not conflict with content already there: a location can only be filled from a single file. The parent of the location must exist in the output document, unless the content is a component (`/components/<type>/<name>`, or in Swagger 2.0 `/definitions/<name>`, `/parameters/<name>`, `/responses/<name>`, `/securityDefinitions/<name>`). A chain of `$ref` at the same location across files (`a.yml#/info` links to `b.yml#/info`) imports the final target. A link to a part of a component (ex: `#/components/schemas/Pet/properties/name`) imports the whole component.
+
+Components (under `/components`) are processed only when they are used: links in unused components are not followed (unused components are removed from the output anyway).
+
 ### `$inline`
 
     { "$inline": "<file>#<pointer>"}

@@ -1,0 +1,11 @@
+components:
+  securitySchemes:
+    oauth:
+      type: oauth2
+      flows:
+        implicit:
+          authorizationUrl: 'https://example.com/auth'
+          scopes: {}
+    basic:
+      type: http
+      scheme: basic

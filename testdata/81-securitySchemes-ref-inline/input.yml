@@ -1,0 +1,26 @@
+---
+# Security schemes are expanded only when they are used: they are named by
+# security requirements (not linked with $ref)
+openapi: 3.0.2
+info:
+  title: Test
+  version: "0.0.1"
+security:
+  - oauth: []
+paths:
+  /:
+    get:
+      security:
+        - basic: []
+      responses:
+        '200':
+          description: OK
+components:
+  securitySchemes:
+    oauth:
+      $ref: 'schemes.yml#/components/securitySchemes/oauth'
+    basic:
+      $inline: 'schemes.yml#/components/securitySchemes/basic'
+      description: Patched
+    unused:
+      $ref: 'missing.yml#/components/securitySchemes/unused'

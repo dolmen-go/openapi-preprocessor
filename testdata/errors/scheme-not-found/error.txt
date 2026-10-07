@@ -1,0 +1,1 @@
+testdata/errors/scheme-not-found/input.yml#/security/0/missing: "#/components/securitySchemes/missing": not found in the final document

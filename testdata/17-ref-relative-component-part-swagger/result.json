@@ -1,0 +1,37 @@
+{
+  "definitions": {
+    "Pet": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "tag": {
+          "$ref": "#/definitions/Tag"
+        }
+      },
+      "type": "object"
+    },
+    "Tag": {
+      "type": "string"
+    }
+  },
+  "info": {
+    "title": "Test",
+    "version": "0.0.1"
+  },
+  "paths": {
+    "/pets": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/Pet/properties/name"
+            }
+          }
+        }
+      }
+    }
+  },
+  "swagger": "2.0"
+}

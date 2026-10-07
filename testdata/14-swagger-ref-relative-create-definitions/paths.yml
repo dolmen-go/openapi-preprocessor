@@ -1,0 +1,23 @@
+paths:
+  /pets:
+    get:
+      security:
+        - petsKey: []
+      responses:
+        '200':
+          description: OK
+          schema:
+            $ref: '#/definitions/Pet'
+        default:
+          $ref: '#/responses/Error'
+definitions:
+  Pet:
+    type: string
+responses:
+  Error:
+    description: Error
+securityDefinitions:
+  petsKey:
+    type: apiKey
+    in: header
+    name: X-Pets-Key

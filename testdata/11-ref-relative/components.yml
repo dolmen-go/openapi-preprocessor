@@ -1,0 +1,9 @@
+components:
+  schemas:
+    Error:
+      type: string
+  securitySchemes:
+    rootKey:
+      type: apiKey
+      in: header
+      name: X-Root-Key

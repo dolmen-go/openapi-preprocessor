@@ -88,6 +88,16 @@ func CleanUnused(rdoc *any) error {
 				return ref, fmt.Errorf("%s: unexpected $ref %q", ptr, ref)
 			}
 			link := ref[1:]
+			// A link to a part of a component keeps the whole component (see
+			// below): visit the whole component to find its own links
+			for _, p := range components {
+				if rest, isInside := strings.CutPrefix(link, p+"/"); isInside {
+					if i := strings.IndexByte(rest, '/'); i >= 0 {
+						link = link[:len(p)+1+i]
+					}
+					break
+				}
+			}
 			// log.Println(ptr, "=>", link)
 			if visited[link] {
 				return ref, nil

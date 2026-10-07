@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -139,4 +140,29 @@ func TestInlineIndirect(t *testing.T) {
 
 func Benchmark43(b *testing.B) {
 	runExpandRefs(b, "testdata/43-inline-overrides-deep")
+}
+
+// TestExpandRefsErrors runs the testdata/errors/*/input.yml cases, which must
+// fail with the error in error.txt.
+func TestExpandRefsErrors(t *testing.T) {
+	dirs, err := filepath.Glob("testdata/errors/*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range dirs {
+		t.Run(filepath.Base(dir), func(t *testing.T) {
+			expected, err := os.ReadFile(filepath.Join(dir, "error.txt"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = processFile(filepath.Join(dir, "input.yml"), func(any) error {
+				return nil
+			}, &debugFlags{})
+			if err == nil {
+				t.Fatal("error expected")
+			}
+			// Error messages contain OS paths
+			assertString(t, filepath.ToSlash(err.Error()), strings.TrimSpace(string(expected)))
+		})
+	}
 }

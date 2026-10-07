@@ -1,0 +1,44 @@
+{
+  "components": {
+    "schemas": {
+      "Pet": {
+        "type": "string"
+      }
+    },
+    "securitySchemes": {
+      "petsKey": {
+        "in": "header",
+        "name": "X-Pets-Key",
+        "type": "apiKey"
+      }
+    }
+  },
+  "info": {
+    "title": "Test",
+    "version": "0.0.1"
+  },
+  "openapi": "3.0.2",
+  "paths": {
+    "/pets": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pet"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "petsKey": []
+          }
+        ]
+      }
+    }
+  }
+}

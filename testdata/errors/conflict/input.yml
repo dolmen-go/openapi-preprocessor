@@ -1,0 +1,13 @@
+---
+openapi: 3.0.2
+info:
+  title: Test
+  version: "0.0.1"
+paths:
+  /pets:
+    $ref: 'paths.yml#/paths/~1pets'
+components:
+  schemas:
+    # Conflicts with Pet in paths.yml
+    Pet:
+      type: integer

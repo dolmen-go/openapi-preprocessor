@@ -1,0 +1,30 @@
+paths:
+  /pets:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                # A part of a component
+                $ref: '#/components/schemas/Pet/properties/name'
+components:
+  schemas:
+    Pet:
+      type: object
+      properties:
+        name:
+          type: string
+        tag:
+          $ref: '#/components/schemas/Tag'
+        owner:
+          $inline: '#/components/schemas/Person'
+          description: Owner
+    Tag:
+      type: string
+    Person:
+      type: object
+      properties:
+        id:
+          type: integer

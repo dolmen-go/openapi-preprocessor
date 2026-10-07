@@ -1,0 +1,23 @@
+---
+# Relative links ($ref "#/..." and security scheme names) are relative to the
+# document where they are used:
+# - if the target exists in that document, it is imported into the final document
+# - else, the target is resolved in the final document
+openapi: 3.0.2
+info:
+  title: Test
+  version: "0.0.1"
+paths:
+  /pets:
+    $ref: 'paths.yml#/paths/~1pets'
+components:
+  schemas:
+    # Used by paths.yml, but not defined there
+    Error:
+      $ref: 'components.yml#/components/schemas/Error'
+    Unused:
+      type: string
+  securitySchemes:
+    # Used by paths.yml, but not defined there
+    rootKey:
+      $ref: 'components.yml#/components/securitySchemes/rootKey'

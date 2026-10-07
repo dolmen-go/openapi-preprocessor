@@ -1,0 +1,1 @@
+testdata/errors/conflict/paths.yml#/paths/~1pets/get/responses/200/content/application~1json/schema: /components/schemas/Pet: conflict between content imported from testdata/errors/conflict/paths.yml and content from testdata/errors/conflict/input.yml

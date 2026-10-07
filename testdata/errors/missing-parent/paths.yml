@@ -1,0 +1,14 @@
+paths:
+  /pets:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                # Not a component: /x-schemas can't be created in the final document
+                $ref: '#/x-schemas/Pet'
+x-schemas:
+  Pet:
+    type: string
