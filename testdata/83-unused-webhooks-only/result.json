@@ -1,0 +1,46 @@
+{
+  "components": {
+    "schemas": {
+      "WebhookEvent": {
+        "type": "string"
+      }
+    },
+    "securitySchemes": {
+      "webhookKey": {
+        "in": "header",
+        "name": "X-Webhook-Key",
+        "type": "apiKey"
+      }
+    }
+  },
+  "info": {
+    "title": "Test",
+    "version": "0.0.1"
+  },
+  "openapi": "3.1.0",
+  "webhooks": {
+    "newPet": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "webhookKey": []
+          }
+        ]
+      }
+    }
+  }
+}

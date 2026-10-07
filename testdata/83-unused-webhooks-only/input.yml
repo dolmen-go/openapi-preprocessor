@@ -1,0 +1,35 @@
+---
+# OpenAPI 3.1 allows a document with webhooks but no paths: unused components
+# are removed too
+openapi: 3.1.0
+info:
+  title: Test
+  version: "0.0.1"
+webhooks:
+  newPet:
+    post:
+      security:
+        - webhookKey: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookEvent'
+      responses:
+        '200':
+          description: OK
+components:
+  schemas:
+    WebhookEvent:
+      type: string
+    Unused:
+      type: string
+  securitySchemes:
+    webhookKey:
+      type: apiKey
+      in: header
+      name: X-Webhook-Key
+    unusedKey:
+      type: apiKey
+      in: header
+      name: X-Unused-Key

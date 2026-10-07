@@ -1,0 +1,130 @@
+{
+  "components": {
+    "callbacks": {
+      "Other": {
+        "{$request.body#/otherUrl}": {
+          "post": {
+            "requestBody": {
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/OtherEvent"
+                  }
+                }
+              }
+            },
+            "responses": {
+              "200": {
+                "description": "OK"
+              }
+            },
+            "security": [
+              {
+                "otherKey": []
+              }
+            ]
+          }
+        }
+      }
+    },
+    "schemas": {
+      "CallbackEvent": {
+        "type": "string"
+      },
+      "OtherEvent": {
+        "type": "string"
+      },
+      "WebhookEvent": {
+        "type": "string"
+      }
+    },
+    "securitySchemes": {
+      "callbackKey": {
+        "in": "header",
+        "name": "X-Callback-Key",
+        "type": "apiKey"
+      },
+      "otherKey": {
+        "in": "header",
+        "name": "X-Other-Key",
+        "type": "apiKey"
+      },
+      "webhookKey": {
+        "in": "header",
+        "name": "X-Webhook-Key",
+        "type": "apiKey"
+      }
+    }
+  },
+  "info": {
+    "title": "Test",
+    "version": "0.0.1"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/subscribe": {
+      "post": {
+        "callbacks": {
+          "onEvent": {
+            "{$request.body#/callbackUrl}": {
+              "post": {
+                "requestBody": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/CallbackEvent"
+                      }
+                    }
+                  }
+                },
+                "responses": {
+                  "200": {
+                    "description": "OK"
+                  }
+                },
+                "security": [
+                  {
+                    "callbackKey": []
+                  }
+                ]
+              }
+            }
+          },
+          "onOther": {
+            "$ref": "#/components/callbacks/Other"
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Subscribed"
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {
+    "newPet": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "webhookKey": []
+          }
+        ]
+      }
+    }
+  }
+}
