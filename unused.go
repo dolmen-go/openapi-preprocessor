@@ -3,10 +3,39 @@ package main
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/dolmen-go/jsonptr"
 )
+
+// visitSecurity calls mark with the name of each security scheme used by the
+// security requirements found in doc (located at ptr), at the root of the
+// document or in operations (see [isSecurityPtr]).
+func visitSecurity(doc any, ptr jsonptr.Pointer, mark func(name string)) {
+	switch doc := doc.(type) {
+	case map[string]any:
+		for k, v := range doc {
+			visitSecurity(v, append(ptr[:len(ptr):len(ptr)], k), mark)
+		}
+	case []any:
+		if isSecurityPtr(ptr) {
+			for _, req := range doc {
+				if req, isObj := req.(map[string]any); isObj {
+					for name := range req {
+						mark(name)
+					}
+				}
+			}
+			return
+		}
+		for i, v := range doc {
+			visitSecurity(v, append(ptr[:len(ptr):len(ptr)], strconv.Itoa(i)), mark)
+		}
+	}
+}
 
 func removeEmptyObject(rdoc *any, pointer string) {
 	ptr, err := jsonptr.Parse(pointer)
@@ -39,13 +68,18 @@ func CleanUnused(rdoc *any) error {
 		return errors.New("root is not an object")
 	}
 
-	if paths, hasPaths := root["paths"]; hasPaths {
+	_, hasPaths := root["paths"]
+	_, hasWebhooks := root["webhooks"] // OpenAPI 3.1
+	if hasPaths || hasWebhooks {
 
 		var components []string
+		// Keys of the root which are containers of components
+		containers := map[string]bool{"components": true}
 
 		if _, hasSwaggerVersion := stringProp(root, "swagger"); hasSwaggerVersion {
 			// TODO check version value (must be "2.0")
 			components = []string{`/definitions`, `/parameters`, `/responses`}
+			containers = swaggerComponents
 		}
 
 		if _, hasOpenAPIVersion := stringProp(root, "openapi"); hasOpenAPIVersion {
@@ -119,32 +153,37 @@ func CleanUnused(rdoc *any) error {
 			return ref, visitRefs(target, targetPtr, visitor)
 		}
 
-		// Visit paths to detect components which are used
-		err := visitRefs(paths, append(make(jsonptr.Pointer, 0, 50), "paths"), visitor)
-		if err != nil {
-			return err
+		// The parts of the document which are not containers of components
+		// (/paths, /webhooks, /security...) are used
+		var used []string
+		for _, k := range sortedKeys(root) {
+			if !containers[k] {
+				used = append(used, "/"+jsonptr.EscapeString(k))
+			}
 		}
 
-		// If there are securitySchemes components, look for references.
-		if secSchemesAny, err := jsonptr.Get(*rdoc, `/components/securitySchemes`); err == nil {
-			if secSchemes, isObj := secSchemesAny.(map[string]any); isObj && len(secSchemes) > 0 {
+		// Visit the used parts to detect components which are used
+		for _, p := range used {
+			err := visitRefs(root[p[1:]], jsonptr.MustParse(p), visitor)
+			if err != nil {
+				return err
+			}
+		}
 
-				markUsedSecuritySchemes := func(ptr string, doc map[string]any) {
-					for _, req := range iterSecurity(ptr, doc) {
-						// https://spec.openapis.org/oas/v3.1.1.html#security-requirement-object
-						for name := range req {
-							// fmt.Println("used: " + `/components/securitySchemes/` + jsonptr.EscapeString(name))
-							// TODO: signal if the securityScheme is not present in /components/securitySchemes
-							delete(unused, `/components/securitySchemes/`+jsonptr.EscapeString(name))
-						}
-					}
+		// Security schemes are not linked with $ref, but named in security
+		// requirements, in the used parts and in the used components.
+		// https://spec.openapis.org/oas/v3.1.1.html#security-requirement-object
+		if slices.Contains(components, `/components/securitySchemes`) {
+			markUsed := func(name string) {
+				delete(unused, `/components/securitySchemes/`+jsonptr.EscapeString(name))
+			}
+			for _, p := range slices.Concat(used, slices.Collect(maps.Keys(visited))) {
+				ptr := jsonptr.MustParse(p)
+				node, err := ptr.In(root)
+				if err != nil {
+					continue
 				}
-
-				markUsedSecuritySchemes(``, root) // process /security
-				// https://spec.openapis.org/oas/v3.1.1.html#operation-object
-				for ptr, op := range iterOperations(root) {
-					markUsedSecuritySchemes(ptr, op) // process /paths/<path>/<method>/security
-				}
+				visitSecurity(node, ptr, markUsed)
 			}
 		}
 
@@ -158,8 +197,7 @@ func CleanUnused(rdoc *any) error {
 				}
 			}
 			// log.Printf("%s: unused", p)
-			_, err = jsonptr.Delete(rdoc, p)
-			if err != nil {
+			if _, err := jsonptr.Delete(rdoc, p); err != nil {
 				panic("This should not happen")
 			}
 		}

@@ -1,0 +1,93 @@
+---
+# Components used by webhooks and by callbacks (inline, or components linked
+# with $ref) are kept: schemas linked with $ref, and security schemes named by
+# security requirements
+openapi: 3.1.0
+info:
+  title: Test
+  version: "0.0.1"
+paths:
+  /subscribe:
+    post:
+      responses:
+        '201':
+          description: Subscribed
+      callbacks:
+        onEvent:
+          '{$request.body#/callbackUrl}':
+            post:
+              security:
+                - callbackKey: []
+              requestBody:
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/CallbackEvent'
+              responses:
+                '200':
+                  description: OK
+        onOther:
+          $ref: '#/components/callbacks/Other'
+webhooks:
+  newPet:
+    post:
+      security:
+        - webhookKey: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookEvent'
+      responses:
+        '200':
+          description: OK
+components:
+  schemas:
+    CallbackEvent:
+      type: string
+    WebhookEvent:
+      type: string
+    OtherEvent:
+      type: string
+    Unused:
+      type: string
+  callbacks:
+    Other:
+      '{$request.body#/otherUrl}':
+        post:
+          security:
+            - otherKey: []
+          requestBody:
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/OtherEvent'
+          responses:
+            '200':
+              description: OK
+    UnusedCallback:
+      '{$request.body#/unusedUrl}':
+        post:
+          security:
+            - unusedKey: []
+          responses:
+            '200':
+              description: OK
+  securitySchemes:
+    callbackKey:
+      type: apiKey
+      in: header
+      name: X-Callback-Key
+    webhookKey:
+      type: apiKey
+      in: header
+      name: X-Webhook-Key
+    otherKey:
+      type: apiKey
+      in: header
+      name: X-Other-Key
+    # Only used by an unused callback
+    unusedKey:
+      type: apiKey
+      in: header
+      name: X-Unused-Key
