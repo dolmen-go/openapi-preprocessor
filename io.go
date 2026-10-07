@@ -87,6 +87,9 @@ func fixMaps(v any) any {
 
 func loadJSON(r io.Reader) (map[string]any, error) {
 	dec := json.NewDecoder(r)
+	// Keep numbers as written (json.Number), as float64 would lose precision
+	// for large integers
+	dec.UseNumber()
 	data, err := loadAny(dec)
 	if err != nil {
 		return nil, err

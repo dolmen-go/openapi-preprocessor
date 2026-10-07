@@ -1,0 +1,26 @@
+{
+  "openapi": "3.0.2",
+  "info": {
+    "title": "Test",
+    "version": "0.0.1"
+  },
+  "paths": {},
+  "components": {
+    "schemas": {
+      "Id": {
+        "description": "JSON numbers are kept as written: large integers keep their precision",
+        "type": "integer",
+        "format": "int64",
+        "minimum": -9223372036854775808,
+        "maximum": 9223372036854775807,
+        "example": 9007199254740993,
+        "x-uint64": 18446744073709551615,
+        "x-float": 1.5,
+        "x-exponent": 1e3
+      }
+    }
+  },
+  "x-used": {
+    "$ref": "#/components/schemas/Id"
+  }
+}
