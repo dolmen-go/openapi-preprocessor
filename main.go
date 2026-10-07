@@ -121,6 +121,7 @@ func _main() (int, error) {
 	if !compactJSON {
 		enc.SetIndent("", "  ")
 	}
+	enc.SetEscapeHTML(false)
 
 	return 0, processFile(flag.Arg(0), enc.Encode, &debug)
 }
