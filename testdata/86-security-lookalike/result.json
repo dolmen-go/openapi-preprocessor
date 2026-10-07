@@ -1,0 +1,79 @@
+{
+  "components": {
+    "schemas": {
+      "Spec": {
+        "description": "An OpenAPI document",
+        "examples": [
+          {
+            "paths": {
+              "/pets": {
+                "get": {
+                  "security": [
+                    {
+                      "petsKey": []
+                    }
+                  ]
+                }
+              }
+            },
+            "webhooks": {
+              "newPet": {
+                "post": {
+                  "callbacks": {
+                    "onEvent": {
+                      "{$request.body#/url}": {
+                        "post": {
+                          "security": [
+                            {
+                              "eventKey": []
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "apiKey": {
+        "in": "header",
+        "name": "X-Api-Key",
+        "type": "apiKey"
+      }
+    }
+  },
+  "info": {
+    "title": "Test",
+    "version": "0.0.1"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/specs": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Spec"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "apiKey": []
+          }
+        ]
+      }
+    }
+  }
+}

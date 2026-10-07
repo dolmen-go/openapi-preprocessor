@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/dolmen-go/jsonptr"
 )
 
 func assertString(t *testing.T, got, expected string) bool {
@@ -180,5 +182,39 @@ func TestExpandRefsErrors(t *testing.T) {
 			// Error messages contain OS paths
 			assertString(t, filepath.ToSlash(err.Error()), strings.TrimSpace(string(expected)))
 		})
+	}
+}
+
+func TestIsSecurityPtr(t *testing.T) {
+	for _, tc := range []struct {
+		ptr      string
+		expected bool
+	}{
+		{"/security", true},
+		{"/paths/~1pets/get/security", true},
+		{"/paths/~1pets/query/security", true}, // OpenAPI 3.2
+		{"/webhooks/newPet/post/security", true},
+		{"/components/pathItems/Pets/get/security", true},
+		{"/components/callbacks/onEvent/{$request.body#~1url}/post/security", true},
+		{"/paths/~1pets/post/callbacks/onEvent/{$request.body#~1url}/post/security", true},
+		{"/webhooks/newPet/post/callbacks/onEvent/{$request.body#~1url}/post/security", true},
+		// Callback in a callback
+		{"/paths/~1pets/post/callbacks/a/{$url}/post/callbacks/b/{$url}/post/security", true},
+
+		{"", false},
+		{"/info/security", false},
+		{"/paths/~1pets/security", false},            // Path Item
+		{"/paths/~1pets/parameters/security", false}, // Not a method
+		{"/components/schemas/Spec/security", false},
+		// Look like operations, but not at their locations in the document
+		{"/components/schemas/Spec/examples/0/paths/~1pets/get/security", false},
+		{"/components/schemas/Spec/properties/webhooks/newPet/post/security", false},
+		{"/x-doc/components/pathItems/Pets/get/security", false},
+		{"/components/schemas/Spec/example/callbacks/a/{$url}/post/security", false},
+		{"/x-callbacks/callbacks/a/{$url}/post/security", false},
+	} {
+		if got := isSecurityPtr(jsonptr.MustParse(tc.ptr)); got != tc.expected {
+			t.Errorf("isSecurityPtr(%q): got %t, expected %t", tc.ptr, got, tc.expected)
+		}
 	}
 }

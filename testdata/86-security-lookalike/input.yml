@@ -1,0 +1,45 @@
+---
+# Security requirements are recognized only at their locations in the structure
+# of the document: data that looks like an OpenAPI document (here, examples)
+# is not mistaken for security requirements
+openapi: 3.1.0
+info:
+  title: Test
+  version: "0.0.1"
+paths:
+  /specs:
+    get:
+      security:
+        - apiKey: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Spec'
+components:
+  schemas:
+    Spec:
+      type: object
+      description: An OpenAPI document
+      examples:
+        - paths:
+            /pets:
+              get:
+                security:
+                  - petsKey: []
+          webhooks:
+            newPet:
+              post:
+                callbacks:
+                  onEvent:
+                    '{$request.body#/url}':
+                      post:
+                        security:
+                          - eventKey: []
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-Api-Key

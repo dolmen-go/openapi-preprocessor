@@ -216,28 +216,39 @@ var operationMethods = map[string]bool{
 }
 
 // isSecurityPtr reports whether ptr is the location of a list of Security Requirement Objects:
-// at the root of a document or in an Operation Object.
+// at the root of a document or in an Operation Object (see [isOperationPtr]).
 func isSecurityPtr(ptr jsonptr.Pointer) bool {
 	n := len(ptr)
 	if n == 0 || ptr[n-1] != "security" {
 		return false
 	}
-	if n == 1 {
-		return true
-	}
-	op := ptr[:n-1]
-	if !operationMethods[op[len(op)-1]] {
+	return n == 1 || isOperationPtr(ptr[:n-1])
+}
+
+// isOperationPtr reports whether ptr is the location of an Operation Object, from
+// the structure of an OpenAPI document. The whole pointer is checked, so that data
+// that looks like an OpenAPI document (ex: in an example) doesn't match:
+//
+//	/paths/{path}/{method}
+//	/webhooks/{name}/{method}                           (OpenAPI 3.1)
+//	/components/pathItems/{name}/{method}               (OpenAPI 3.1)
+//	/components/callbacks/{name}/{expression}/{method}
+//	{operation}/callbacks/{name}/{expression}/{method}
+func isOperationPtr(ptr jsonptr.Pointer) bool {
+	n := len(ptr)
+	if n < 3 || !operationMethods[ptr[n-1]] {
 		return false
 	}
-	// /paths/{path}/{method}, /webhooks/{name}/{method}, /components/pathItems/{name}/{method}
-	if len(op) >= 3 {
-		switch op[len(op)-3] {
-		case "paths", "webhooks", "pathItems":
-			return true
-		}
+	switch {
+	case n == 3:
+		return ptr[0] == "paths" || ptr[0] == "webhooks"
+	case n == 4:
+		return ptr[0] == "components" && ptr[1] == "pathItems"
+	case ptr[n-4] == "callbacks":
+		parent := ptr[:n-4]
+		return (len(parent) == 1 && parent[0] == "components") || isOperationPtr(parent)
 	}
-	// .../callbacks/{name}/{expression}/{method}
-	return len(op) >= 4 && op[len(op)-4] == "callbacks"
+	return false
 }
 
 // isNotFound reports whether err (from resolve) is because the target of the link doesn't exist.
