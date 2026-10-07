@@ -1,0 +1,38 @@
+---
+# Swagger 2.0: unused security definitions are removed, like other unused
+# components, and empty containers of components are removed
+swagger: "2.0"
+info:
+  title: Test
+  version: "0.0.1"
+security:
+  - rootKey: []
+paths:
+  /pets:
+    get:
+      security:
+        - petsKey: []
+      responses:
+        '200':
+          description: OK
+definitions:
+  UnusedDefinition:
+    type: string
+parameters:
+  UnusedParameter:
+    name: id
+    in: query
+    type: string
+securityDefinitions:
+  rootKey:
+    type: apiKey
+    in: header
+    name: X-Root-Key
+  petsKey:
+    type: apiKey
+    in: header
+    name: X-Pets-Key
+  unusedKey:
+    type: apiKey
+    in: header
+    name: X-Unused-Key

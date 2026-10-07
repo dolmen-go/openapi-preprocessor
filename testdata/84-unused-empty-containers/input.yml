@@ -1,0 +1,54 @@
+---
+# Containers of components left empty by the removal of unused components are
+# removed. Path items (OpenAPI 3.1) are cleaned too.
+openapi: 3.1.0
+info:
+  title: Test
+  version: "0.0.1"
+paths:
+  /pets:
+    $ref: '#/components/pathItems/Pets'
+components:
+  pathItems:
+    Pets:
+      get:
+        responses:
+          '200':
+            description: OK
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Pet'
+    UnusedPathItem:
+      get:
+        responses:
+          '200':
+            description: OK
+  schemas:
+    Pet:
+      type: string
+    UnusedSchema:
+      type: string
+  callbacks:
+    UnusedCallback:
+      '{$request.body#/url}':
+        post:
+          responses:
+            '200':
+              description: OK
+  examples:
+    UnusedExample:
+      value: 1
+  headers:
+    UnusedHeader:
+      schema:
+        type: string
+  links:
+    UnusedLink:
+      operationId: getPets
+  requestBodies:
+    UnusedRequestBody:
+      content:
+        application/json:
+          schema:
+            type: string

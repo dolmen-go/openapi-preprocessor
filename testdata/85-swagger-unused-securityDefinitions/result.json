@@ -1,0 +1,40 @@
+{
+  "info": {
+    "title": "Test",
+    "version": "0.0.1"
+  },
+  "paths": {
+    "/pets": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "petsKey": []
+          }
+        ]
+      }
+    }
+  },
+  "security": [
+    {
+      "rootKey": []
+    }
+  ],
+  "securityDefinitions": {
+    "petsKey": {
+      "in": "header",
+      "name": "X-Pets-Key",
+      "type": "apiKey"
+    },
+    "rootKey": {
+      "in": "header",
+      "name": "X-Root-Key",
+      "type": "apiKey"
+    }
+  },
+  "swagger": "2.0"
+}

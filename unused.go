@@ -68,33 +68,38 @@ func CleanUnused(rdoc *any) error {
 		return errors.New("root is not an object")
 	}
 
+	var components []string
+	// Keys of the root which are containers of components
+	containers := map[string]bool{"components": true}
+	// Container of security schemes, which are named in security requirements
+	var securitySchemes string
+
+	if _, hasSwaggerVersion := stringProp(root, "swagger"); hasSwaggerVersion {
+		// TODO check version value (must be "2.0")
+		components = []string{`/definitions`, `/parameters`, `/responses`, `/securityDefinitions`}
+		containers = swaggerComponents
+		securitySchemes = `/securityDefinitions`
+	}
+
+	if _, hasOpenAPIVersion := stringProp(root, "openapi"); hasOpenAPIVersion {
+		components = []string{
+			`/components/schemas`,
+			`/components/parameters`,
+			`/components/responses`,
+			`/components/examples`,
+			`/components/requestBodies`,
+			`/components/headers`,
+			`/components/securitySchemes`,
+			`/components/links`,
+			`/components/callbacks`,
+			`/components/pathItems`, // OpenAPI 3.1
+		}
+		securitySchemes = `/components/securitySchemes`
+	}
+
 	_, hasPaths := root["paths"]
 	_, hasWebhooks := root["webhooks"] // OpenAPI 3.1
 	if hasPaths || hasWebhooks {
-
-		var components []string
-		// Keys of the root which are containers of components
-		containers := map[string]bool{"components": true}
-
-		if _, hasSwaggerVersion := stringProp(root, "swagger"); hasSwaggerVersion {
-			// TODO check version value (must be "2.0")
-			components = []string{`/definitions`, `/parameters`, `/responses`}
-			containers = swaggerComponents
-		}
-
-		if _, hasOpenAPIVersion := stringProp(root, "openapi"); hasOpenAPIVersion {
-			components = []string{
-				`/components/schemas`,
-				`/components/parameters`,
-				`/components/responses`,
-				`/components/examples`,
-				`/components/requestBodies`,
-				`/components/headers`,
-				`/components/securitySchemes`,
-				`/components/links`,
-				`/components/callbacks`,
-			}
-		}
 
 		// Collect all defined components.
 		unused := make(map[string]bool)
@@ -173,9 +178,9 @@ func CleanUnused(rdoc *any) error {
 		// Security schemes are not linked with $ref, but named in security
 		// requirements, in the used parts and in the used components.
 		// https://spec.openapis.org/oas/v3.1.1.html#security-requirement-object
-		if slices.Contains(components, `/components/securitySchemes`) {
+		if securitySchemes != "" {
 			markUsed := func(name string) {
-				delete(unused, `/components/securitySchemes/`+jsonptr.EscapeString(name))
+				delete(unused, securitySchemes+"/"+jsonptr.EscapeString(name))
 			}
 			for _, p := range slices.Concat(used, slices.Collect(maps.Keys(visited))) {
 				ptr := jsonptr.MustParse(p)
@@ -203,14 +208,11 @@ func CleanUnused(rdoc *any) error {
 		}
 	}
 
-	removeEmptyObject(rdoc, `/components/schemas`)
-	removeEmptyObject(rdoc, `/components/parameters`)
-	removeEmptyObject(rdoc, `/components/responses`)
-	removeEmptyObject(rdoc, `/components/securitySchemes`)
+	// Remove the containers of components left empty
+	for _, p := range components {
+		removeEmptyObject(rdoc, p)
+	}
 	removeEmptyObject(rdoc, `/components`)
-	removeEmptyObject(rdoc, `/definitions`)
-	removeEmptyObject(rdoc, `/parameters`)
-	removeEmptyObject(rdoc, `/responses`)
 
 	return nil
 }
