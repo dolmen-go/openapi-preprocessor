@@ -71,7 +71,7 @@ Or pin it as a project dependency (recorded in the project's `mise.toml`):
 
 Restrictions:
 - JSON pointer location in the output document will be the same location as in the ref link. Example: `{"$ref": "external.yml#/components/parameters/Id"}` will import the content to `/components/parameters/Id`. This implies that partial files should have the same layout as a full spec (this is a feature as it enforces readability of partials).
-- other properties along `$ref` (ex: `summary`, `description`) are NOT ([yet!](https://github.com/dolmen-go/openapi-preprocessor/issues/19)) allowed as the semantics in JSON Schema and Swagger/OpenAPI has evolved and the support in consuming tools may vary. Use `$merge` instead that has a strict behaviour in this tool.
+- other properties along `$ref` are not allowed, except `summary` and `description` (as in the [OpenAPI 3.1 Reference Object](https://spec.openapis.org/oas/v3.1.0#reference-object)) and `$comment`, which are kept as is in the output. The semantics of other properties along `$ref` in JSON Schema and Swagger/OpenAPI has evolved and the support in consuming tools may vary (see [issue #19](https://github.com/dolmen-go/openapi-preprocessor/issues/19)). Use `$merge` instead that has a strict behaviour in this tool.
 
 A link without a file (`{"$ref": "#<pointer>"}`) is relative to the file where it is used. In a partial file:
 - if the target exists in that file, it is imported into the output document. A partial file can so bring its own components.
