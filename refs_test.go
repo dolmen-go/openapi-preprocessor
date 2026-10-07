@@ -74,6 +74,18 @@ func runAllExpandRefs(t interface {
 	}
 }
 
+// decodeJSONExact decodes JSON keeping numbers as written (json.Number), to
+// compare results precisely. It is independent of the code under test (loadJSON).
+func decodeJSONExact(b []byte) (any, error) {
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.UseNumber()
+	var v any
+	if err := dec.Decode(&v); err != nil {
+		return nil, err
+	}
+	return v, nil
+}
+
 func runExpandRefs(t testing.TB, path string) {
 	var inputPath string
 	for _, ext := range []string{".yml", ".yaml", ".json"} {
@@ -93,7 +105,11 @@ func runExpandRefs(t testing.TB, path string) {
 		t.Fatal("no input file")
 	}
 
-	expected, err := loadFile(filepath.Join(filepath.FromSlash(path), "result.json"))
+	resultJSON, err := os.ReadFile(filepath.Join(filepath.FromSlash(path), "result.json"))
+	if err != nil {
+		t.Fatalf("%s/result.json: %v", path, err)
+	}
+	expected, err := decodeJSONExact(resultJSON)
 	if err != nil {
 		t.Fatalf("%s/result.json: %v", path, err)
 	}
@@ -113,9 +129,9 @@ func runExpandRefs(t testing.TB, path string) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		// Roundtrip to avoid float64/int64 issues because of YAML unserializer
-		var out2 map[string]any
-		err = json.Unmarshal(b, &out2)
+		// Roundtrip to avoid float64/int64 issues because of YAML unserializer.
+		// Decode like result.json, for the same representation of numbers.
+		out2, err := decodeJSONExact(b)
 		if err != nil {
 			t.Fatal(err)
 		}

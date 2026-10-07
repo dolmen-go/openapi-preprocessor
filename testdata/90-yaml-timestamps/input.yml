@@ -1,0 +1,36 @@
+---
+# YAML timestamps are kept as written: JSON has no timestamp type
+openapi: 3.0.2
+info:
+  title: Test
+  version: "0.0.1"
+paths: {}
+components:
+  schemas:
+    Event:
+      type: object
+      properties:
+        day:
+          type: string
+          format: date
+          example: 2024-01-01
+        at:
+          type: string
+          format: date-time
+          example: 2024-01-01T12:34:56Z
+          default: 2024-01-01 12:34:56.5 +02:00
+        tagged:
+          type: string
+          example: !!timestamp 2024-06-30
+        quoted:
+          type: string
+          example: "2024-01-01"
+    Days:
+      type: object
+      # Timestamps as keys
+      properties:
+        2024-01-01:
+          type: string
+x-used:
+  - $ref: '#/components/schemas/Event'
+  - $ref: '#/components/schemas/Days'
