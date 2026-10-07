@@ -1,0 +1,15 @@
+---
+openapi: 3.0.2
+info:
+  title: Test
+  version: "0.0.1"
+paths: {}
+x-a:
+  # With patches, the target is dereferenced through the chain of $ref,
+  # which here is a cycle
+  $inline: '#/x-x'
+  foo: bar
+x-x:
+  $ref: '#/x-y'
+x-y:
+  $ref: '#/x-x'

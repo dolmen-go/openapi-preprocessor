@@ -167,10 +167,12 @@ type refResolver struct {
 	rootPath string
 	docs     map[string]*any // path -> rdoc
 	visited  map[loc]bool
-	inject   map[string]injection // pointer in the final document -> source
-	deferred []deferredLink
-	inlining bool
-	trace    func(string)
+	// expanding are the nodes being expanded (in the call stack)
+	expanding map[loc]bool
+	inject    map[string]injection // pointer in the final document -> source
+	deferred  []deferredLink
+	inlining  bool
+	trace     func(string)
 
 	swagger bool // Swagger 2.0 (else OpenAPI 3.x)
 
@@ -311,10 +313,6 @@ func (resolver *refResolver) resolve(link string, relativeTo *loc) (*node, error
 
 	// log.Println("=>", u)
 
-	if targetLoc.Path == relativeTo.Path && strings.HasPrefix(relativeTo.Ptr, targetLoc.Ptr+"/") {
-		return nil, errors.New("circular link")
-	}
-
 	rdoc, loaded := resolver.docs[targetLoc.Path]
 	if !loaded {
 		//log.Println("Loading", &targetLoc)
@@ -382,6 +380,14 @@ func (resolver *refResolver) expand(n node) error {
 	if !resolver.inlining {
 		resolver.visited[n.loc] = true
 	}
+	// A node already being expanded (up in the stack) is reached again through a
+	// recursive link (ex: recursive schema). This matters while inlining, as
+	// visited isn't updated.
+	if resolver.expanding[n.loc] {
+		return nil
+	}
+	resolver.expanding[n.loc] = true
+	defer delete(resolver.expanding, n.loc)
 
 	if doc, isSlice := n.data.([]any); isSlice {
 		if isSecurityPtr(jsonptr.MustParse(n.loc.Ptr)) {
@@ -473,11 +479,12 @@ func (resolver *refResolver) expandTagRef(obj map[string]any, set setter, l *loc
 	if err != nil || target == nil { // target == nil: deferred
 		return err
 	}
-	if l.Ptr != target.loc.Ptr && strings.HasPrefix(l.Ptr+"/", target.loc.Ptr+"/") {
-		if target.loc.Ptr == "" {
-			return resolver.Errorf(l, "injection of %q at root will create a circular link (tip: use $inline)", target.loc.Path)
-		}
-		return resolver.Errorf(l, "injection of %q at path %q will create a circular link (tip: use $inline)", target.loc, target.loc.Ptr)
+	// A link to an ancestor is fine (recursive schema), except to a whole document
+	if target.loc.Ptr == "" {
+		return resolver.Errorf(l, "injection of %q at root will create a circular link (tip: use $inline)", target.loc.Path)
+	}
+	if target.loc == *l {
+		return resolver.Errorf(l, "circular link: $ref to itself")
 	}
 
 	return nil
@@ -635,12 +642,15 @@ func (resolver *refResolver) expandTagMerge(obj map[string]any, set setter, l *l
 	}
 	delete(obj, "$merge")
 
+	// Expand again the same node, now without $merge
 	delete(resolver.visited, *l)
+	delete(resolver.expanding, *l)
 	err := resolver.expand(node{obj, func(data any) {
 		obj = data.(map[string]any)
 		set(data)
 	}, *l})
 	resolver.visited[*l] = true
+	resolver.expanding[*l] = true // Restore for the caller's deferred cleanup
 	if err != nil {
 		return err
 	}
@@ -732,6 +742,7 @@ func (resolver *refResolver) expandTagInline(obj map[string]any, set setter, l *
 	var target *node
 	var err error
 	l2 := loc{l.Path, l.Ptr} // Clone
+	seen := map[loc]bool{}   // Targets of the chain of $ref
 	for {
 		target, err = resolver.resolveAndExpand(link, &l2)
 		if err != nil {
@@ -742,12 +753,10 @@ func (resolver *refResolver) expandTagInline(obj map[string]any, set setter, l *
 		if link == "" || len(obj) == 1 {
 			break
 		}
-		/*
-			if target.loc == l2 {
-				// FIXME Fix message
-				return resolver.Errorf(&loc{l.Path, l.Ptr + "/$inline"}, "circular link %s %s", l2, link)
-			}
-		*/
+		if seen[target.loc] {
+			return resolver.Errorf(&loc{l.Path, l.Ptr + "/$inline"}, "circular chain of $ref at %s", target.loc.Rel(resolver.basePath))
+		}
+		seen[target.loc] = true
 		// Else loop to dereference it
 		l2 = loc{target.loc.Path, target.loc.Ptr}
 	}
@@ -793,8 +802,16 @@ func (resolver *refResolver) expandTagInline(obj map[string]any, set setter, l *
 	return nil
 }
 
+// resolveAndExpand resolves and expands the target of a link which content is copied
+// ($inline, $merge).
+//
+// The target can't be an ancestor of the link: copying it would create an infinite tree.
+// (A $ref to an ancestor is fine: this is a recursive schema).
 func (resolver *refResolver) resolveAndExpand(link string, relativeTo *loc) (n *node, err error) {
 	n, err = resolver.resolve(link, relativeTo)
+	if err == nil && n.loc.Path == relativeTo.Path && strings.HasPrefix(relativeTo.Ptr, n.loc.Ptr+"/") {
+		err = errors.New("circular link")
+	}
 	if err != nil {
 		if _, isExpandErr := err.(*errExpand); !isExpandErr {
 			err = resolver.Error(relativeTo, err)
@@ -829,9 +846,10 @@ func ExpandRefs(rdoc *any, docURL *url.URL, trace func(string)) error {
 		docs: map[string]*any{
 			path: rdoc,
 		},
-		inject:  make(map[string]injection),
-		visited: make(map[loc]bool),
-		trace:   trace,
+		inject:    make(map[string]injection),
+		visited:   make(map[loc]bool),
+		expanding: make(map[loc]bool),
+		trace:     trace,
 
 		securitySchemes: "/components/securitySchemes/",
 	}

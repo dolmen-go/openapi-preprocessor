@@ -1,0 +1,1 @@
+testdata/errors/ref-to-itself/input.yml#/components/schemas/Self: circular link: $ref to itself

@@ -1,0 +1,1 @@
+testdata/errors/inline-ref-cycle/input.yml#/x-a/$inline: circular chain of $ref at testdata/errors/inline-ref-cycle/input.yml#/x-x
