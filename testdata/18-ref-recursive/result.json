@@ -1,0 +1,121 @@
+{
+  "components": {
+    "schemas": {
+      "A": {
+        "properties": {
+          "b": {
+            "$ref": "#/components/schemas/B"
+          }
+        },
+        "type": "object"
+      },
+      "B": {
+        "properties": {
+          "a": {
+            "$ref": "#/components/schemas/A"
+          }
+        },
+        "type": "object"
+      },
+      "List": {
+        "properties": {
+          "next": {
+            "$ref": "#/components/schemas/List"
+          }
+        },
+        "type": "object"
+      },
+      "Node": {
+        "properties": {
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/Node"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Test",
+    "version": "0.0.1"
+  },
+  "openapi": "3.0.2",
+  "paths": {
+    "/imported": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/List"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/inlined": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Inlined",
+                  "properties": {
+                    "children": {
+                      "items": {
+                        "$ref": "#/components/schemas/Node"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/pair": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/A"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/tree": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Node"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        }
+      }
+    }
+  }
+}

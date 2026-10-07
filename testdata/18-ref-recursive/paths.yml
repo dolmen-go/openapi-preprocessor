@@ -1,0 +1,17 @@
+paths:
+  /imported:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/List'
+components:
+  schemas:
+    List:
+      type: object
+      properties:
+        next:
+          $ref: '#/components/schemas/List'

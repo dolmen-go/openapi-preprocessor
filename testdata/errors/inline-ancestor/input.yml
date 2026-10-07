@@ -1,0 +1,10 @@
+---
+openapi: 3.0.2
+info:
+  title: Test
+  version: "0.0.1"
+paths: {}
+x-a:
+  b:
+    # A copy of its own ancestor would be infinite
+    $inline: '#/x-a'

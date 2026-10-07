@@ -1,0 +1,20 @@
+---
+openapi: 3.0.2
+info:
+  title: Test
+  version: "0.0.1"
+paths:
+  /self:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Self'
+components:
+  schemas:
+    # A $ref to itself has no content
+    Self:
+      $ref: '#/components/schemas/Self'

@@ -1,0 +1,60 @@
+---
+# Recursive schemas: a $ref to an ancestor (or through a cycle of $ref) is fine
+openapi: 3.0.2
+info:
+  title: Test
+  version: "0.0.1"
+paths:
+  /tree:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                # Recursive through a property of itself
+                $ref: '#/components/schemas/Node'
+  /pair:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                # Mutually recursive
+                $ref: '#/components/schemas/A'
+  /inlined:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                # A copy of a recursive schema: the recursion stays a $ref
+                $inline: '#/components/schemas/Node'
+                description: Inlined
+  /imported:
+    # Recursive schema in a partial file
+    $ref: 'paths.yml#/paths/~1imported'
+components:
+  schemas:
+    Node:
+      type: object
+      properties:
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/Node'
+    A:
+      type: object
+      properties:
+        b:
+          $ref: '#/components/schemas/B'
+    B:
+      type: object
+      properties:
+        a:
+          $ref: '#/components/schemas/A'
