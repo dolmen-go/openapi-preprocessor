@@ -1,0 +1,37 @@
+---
+# A link to a part of a component expands the whole component, and keeps the
+# components it uses
+openapi: 3.0.2
+info:
+  title: Test
+  version: "0.0.1"
+paths:
+  /pets:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                # A part of a component
+                $ref: '#/components/schemas/Pet/properties/name'
+components:
+  schemas:
+    Pet:
+      type: object
+      properties:
+        name:
+          type: string
+        tag:
+          $ref: '#/components/schemas/Tag'
+        owner:
+          $inline: '#/components/schemas/Person'
+          description: Owner
+    Tag:
+      type: string
+    Person:
+      type: object
+      properties:
+        id:
+          type: integer

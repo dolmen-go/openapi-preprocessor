@@ -1,0 +1,52 @@
+{
+  "components": {
+    "schemas": {
+      "Pet": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "owner": {
+            "description": "Owner",
+            "properties": {
+              "id": {
+                "type": "integer"
+              }
+            },
+            "type": "object"
+          },
+          "tag": {
+            "$ref": "#/components/schemas/Tag"
+          }
+        },
+        "type": "object"
+      },
+      "Tag": {
+        "type": "string"
+      }
+    }
+  },
+  "info": {
+    "title": "Test",
+    "version": "0.0.1"
+  },
+  "openapi": "3.0.2",
+  "paths": {
+    "/pets": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pet/properties/name"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        }
+      }
+    }
+  }
+}

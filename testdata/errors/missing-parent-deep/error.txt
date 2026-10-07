@@ -1,1 +1,0 @@
-testdata/errors/missing-parent-deep/paths.yml#/paths/~1pets/get/responses/200/content/application~1json/schema: testdata/errors/missing-parent-deep/paths.yml#/components/schemas/Pet/properties/name: /components doesn't exist in the final document

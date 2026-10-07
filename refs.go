@@ -499,13 +499,52 @@ func (resolver *refResolver) importLink(link string, l *loc) (*node, error) {
 		}
 		return nil, err
 	}
-	if err = resolver.expandNode(target); err != nil {
+	imported, err := resolver.expandTarget(target)
+	if err != nil {
 		return nil, err
 	}
-	if err = resolver.recordInjection(target, l, link); err != nil {
+	if err = resolver.recordInjection(imported, l, link); err != nil {
 		return nil, err
 	}
 	return target, nil
+}
+
+// enclosingComponent returns the pointer of the component which contains ptr
+// (/components/<type>/<name>, or /<container>/<name> in Swagger 2.0) if ptr is
+// a part of a component (and not the component itself).
+func (resolver *refResolver) enclosingComponent(ptr string) (string, bool) {
+	p := jsonptr.MustParse(ptr)
+	switch {
+	case resolver.swagger:
+		if len(p) > 2 && swaggerComponents[p[0]] {
+			return p[:2].String(), true
+		}
+	case len(p) > 3 && p[0] == "components":
+		return p[:3].String(), true
+	}
+	return "", false
+}
+
+// expandTarget expands the target of a link and returns the node to import.
+//
+// If the target is a part of a component, the whole component is expanded and
+// imported, as the target is meaningful only in its component.
+func (resolver *refResolver) expandTarget(target *node) (*node, error) {
+	comp, isPart := resolver.enclosingComponent(target.loc.Ptr)
+	if !isPart {
+		return target, resolver.expandNode(target)
+	}
+	compNode, err := resolver.resolve("#"+comp, &loc{Path: target.loc.Path})
+	if err != nil {
+		if _, isExpandErr := err.(*errExpand); !isExpandErr {
+			err = resolver.Error(&target.loc, err)
+		}
+		return nil, err
+	}
+	if err = resolver.expandNode(compNode); err != nil {
+		return nil, err
+	}
+	return compNode, nil
 }
 
 // isRelativeLink reports whether link is relative to the document where it is used ("#<pointer>").
@@ -834,7 +873,7 @@ func ExpandRefs(rdoc *any, docURL *url.URL, trace func(string)) error {
 			}
 			return err
 		}
-		if err = resolver.expandNode(target); err != nil {
+		if _, err = resolver.expandTarget(target); err != nil {
 			return err
 		}
 	}

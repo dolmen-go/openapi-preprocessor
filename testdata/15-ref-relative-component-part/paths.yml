@@ -7,7 +7,7 @@ paths:
           content:
             application/json:
               schema:
-                # Not a component itself, but a part of a component
+                # A part of a component
                 $ref: '#/components/schemas/Pet/properties/name'
 components:
   schemas:
@@ -16,3 +16,15 @@ components:
       properties:
         name:
           type: string
+        tag:
+          $ref: '#/components/schemas/Tag'
+        owner:
+          $inline: '#/components/schemas/Person'
+          description: Owner
+    Tag:
+      type: string
+    Person:
+      type: object
+      properties:
+        id:
+          type: integer

@@ -1,0 +1,10 @@
+---
+# The partial file links to a part of a component: the whole component is
+# imported (and expanded), with the components it uses
+openapi: 3.0.2
+info:
+  title: Test
+  version: "0.0.1"
+paths:
+  /pets:
+    $ref: 'paths.yml#/paths/~1pets'

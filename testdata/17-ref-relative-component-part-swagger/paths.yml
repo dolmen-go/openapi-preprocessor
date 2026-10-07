@@ -1,0 +1,19 @@
+paths:
+  /pets:
+    get:
+      responses:
+        '200':
+          description: OK
+          schema:
+            # A part of a component
+            $ref: '#/definitions/Pet/properties/name'
+definitions:
+  Pet:
+    type: object
+    properties:
+      name:
+        type: string
+      tag:
+        $ref: '#/definitions/Tag'
+  Tag:
+    type: string
