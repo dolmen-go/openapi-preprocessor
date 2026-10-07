@@ -84,3 +84,37 @@ jobs:
           # https://app.codecov.io/gh/dolmen-go/openapi-preprocessor/config/general
           # https://github.com/dolmen-go/openapi-preprocessor/settings/secrets/actions
           token: ${{ secrets.CODECOV_TOKEN }}
+
+  # Build the release as release.yml does, without publishing it
+  release-dry-run:
+    needs: [ test ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+
+      - uses: docker/setup-buildx-action@v4
+
+      # For the SBOMs of the archives
+      - uses: anchore/sbom-action/download-syft@v0
+
+      - name: Check GoReleaser config
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          version: '~> v2'
+          args: check
+
+      - name: Build release (snapshot)
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          version: '~> v2'
+          args: release --snapshot --clean
+
+      - name: Smoke test the image
+        run: .goreleaser/smoke-test.sh "ghcr.io/dolmen-go/openapi-preprocessor:$(jq -r .version dist/metadata.json)-amd64"
