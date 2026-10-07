@@ -6,3 +6,4 @@
 /dist/
 /coverage.out
 /.coverage.out
+!/.goreleaser.yaml

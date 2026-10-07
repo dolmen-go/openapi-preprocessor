@@ -1,0 +1,64 @@
+# GoReleaser config: https://goreleaser.com/customization/
+# Releases are made by .github/workflows/release.yml on push of a v* tag.
+# Local dry run: goreleaser release --snapshot --clean
+version: 2
+
+project_name: openapi-preprocessor
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    # No -X: the version is read from the build info (see version() in main.go)
+    ldflags:
+      - -s -w
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+      - man/man1/openapi-preprocessor.1
+
+sboms:
+  - artifacts: archive
+
+checksum:
+  name_template: checksums.txt
+
+release:
+  prerelease: auto
+
+dockers_v2:
+  - dockerfile: .goreleaser/Dockerfile
+    images:
+      - ghcr.io/dolmen-go/openapi-preprocessor
+    tags:
+      - "{{ .Version }}"
+      - "{{ if not .Prerelease }}{{ .Major }}.{{ .Minor }}{{ end }}"
+      - "{{ if not .Prerelease }}{{ .Major }}{{ end }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    sbom: "true"
+    labels:
+      org.opencontainers.image.title: "{{ .ProjectName }}"
+      org.opencontainers.image.description: Preprocessor for OpenAPI specifications ($ref to external files, $inline, $merge)
+      org.opencontainers.image.source: https://github.com/dolmen-go/openapi-preprocessor
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.licenses: Apache-2.0
+    # For a multi-arch image, GHCR reads these from the index.
+    # Snapshot builds are single-platform (no index): an empty value drops them.
+    annotations:
+      "index:org.opencontainers.image.description": "{{ if not .IsSnapshot }}Preprocessor for OpenAPI specifications ($ref to external files, $inline, $merge){{ end }}"
+      "index:org.opencontainers.image.source": "{{ if not .IsSnapshot }}https://github.com/dolmen-go/openapi-preprocessor{{ end }}"
+      "index:org.opencontainers.image.licenses": "{{ if not .IsSnapshot }}Apache-2.0{{ end }}"

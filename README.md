@@ -55,6 +55,80 @@ Or pin it as a project dependency (recorded in the project's `mise.toml`):
 
     $ mise use go:github.com/dolmen-go/openapi-preprocessor@latest
 
+### Download a binary
+
+Binaries for Linux, macOS and Windows, on amd64 and arm64, are attached to each
+[GitHub release](https://github.com/dolmen-go/openapi-preprocessor/releases).
+Each archive contains the `openapi-preprocessor` binary, this README, the license
+and the man page.
+
+Each release also has a `checksums.txt` file (SHA-256) and, for each archive, an
+SBOM (`<archive>.sbom.json`, SPDX format) listing the Go modules the binary is
+built from.
+
+Verify the archives you downloaded:
+
+    $ sha256sum --ignore-missing -c checksums.txt
+
+### Run with Docker or Podman
+
+A minimal image (just the static binary: no shell, runs as an unprivileged user)
+is published for `linux/amd64` and `linux/arm64` on the GitHub Container Registry:
+
+    $ docker run --rm --read-only --network none -v "$PWD:/work:ro" ghcr.io/dolmen-go/openapi-preprocessor spec.yaml > spec.json
+
+With Podman (`--security-opt label=disable` lets the container read your files
+on hosts with SELinux, such as Fedora or RHEL, without relabeling them):
+
+    $ podman run --security-opt label=disable --rm --read-only --network none -v "$PWD:/work:ro" ghcr.io/dolmen-go/openapi-preprocessor spec.yaml > spec.json
+
+The tool only reads its input files and writes the result on its standard output,
+so it works with a read-only container, a read-only mount and no network.
+
+Tags:
+
+- `1.2.3`: a release
+- `1.2`, `1`: the latest release of that minor or major version
+- `latest`: the latest release
+
+Pre-releases (ex: `1.0.0-rc.2`) are only published under their exact version.
+
+The mounted directory is `/work`, the working directory of the container: give
+the path of your spec relative to it. Every file reached with `$ref`, including
+through `../`, must be inside the mounted directory, so mount the root of your
+project and give the path of the spec from there:
+
+    $ docker run --rm --read-only --network none -v "$PWD:/work:ro" ghcr.io/dolmen-go/openapi-preprocessor api/spec.yaml > api.json
+
+The container runs as UID 65532, so your files must be readable by others (as
+with the usual 644 and 755 permissions). For files that only you can read, run
+the container as yourself:
+
+    $ docker run --user "$(id -u):$(id -g)" --rm --read-only --network none -v "$PWD:/work:ro" ghcr.io/dolmen-go/openapi-preprocessor spec.yaml > spec.json
+    $ podman run --userns=keep-id --user "$(id -u):$(id -g)" --security-opt label=disable --rm --read-only --network none -v "$PWD:/work:ro" ghcr.io/dolmen-go/openapi-preprocessor spec.yaml > spec.json
+
+Use it like a locally installed command:
+
+    $ alias openapi-preprocessor='docker run --rm --read-only --network none -v "$PWD:/work:ro" ghcr.io/dolmen-go/openapi-preprocessor'
+    $ openapi-preprocessor spec.yaml > spec.json
+
+Copy the binary into your own image:
+
+    COPY --from=ghcr.io/dolmen-go/openapi-preprocessor:1 /usr/local/bin/openapi-preprocessor /usr/local/bin/
+
+In a GitHub Actions workflow:
+
+    - name: Build the OpenAPI spec
+      run: docker run --rm --read-only --network none -v "$PWD:/work:ro" ghcr.io/dolmen-go/openapi-preprocessor:1 api/spec.yaml > api.json
+
+As the image has no shell, it can't be the image of a CI job (GitLab CI `image:`,
+GitHub Actions `container:`). Instead, run it with `docker run` as above, copy the
+binary into your own CI image with `COPY --from`, or download a release binary.
+
+The image has an SBOM attached (SPDX format, one for each platform):
+
+    $ docker buildx imagetools inspect ghcr.io/dolmen-go/openapi-preprocessor:1 --format '{{ json .SBOM }}'
+
 ## Usage
 
     openapi-preprocessor [<option>...] <file>
