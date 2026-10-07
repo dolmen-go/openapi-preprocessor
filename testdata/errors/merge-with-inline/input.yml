@@ -1,0 +1,14 @@
+---
+openapi: 3.0.2
+info:
+  title: Test
+  version: "0.0.1"
+paths: {}
+x-base:
+  a: base-a
+x-extra:
+  c: extra-c
+x-both:
+  # Rejected, even if both targets are objects
+  $inline: '#/x-base'
+  $merge: '#/x-extra'

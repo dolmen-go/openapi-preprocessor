@@ -130,6 +130,8 @@ Notes:
 
 `$merge` is an OpenAPI extension allowing to copy a node, overriding some keys. This is a kind of inlined *`$ref` with keys overrides*.
 
+`$merge` and `$inline` can't be used together in the same object.
+
 ## Examples
 
 See the [testsuite](https://github.com/dolmen-go/openapi-preprocessor/tree/master/testdata).

@@ -617,6 +617,9 @@ func (resolver *refResolver) expandSecurity(l loc, reqs []any) error {
 // expandTagMerge expands a $merge object.
 func (resolver *refResolver) expandTagMerge(obj map[string]any, set setter, l *loc, refs any) error {
 	resolver.Tracef("$merge at %s", l)
+	if _, isInline := obj["$inline"]; isInline {
+		return resolver.Errorf(l, "$merge and $inline can't be used together")
+	}
 	var links []string
 	switch refs := refs.(type) {
 	case string:
