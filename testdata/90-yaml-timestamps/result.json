@@ -1,0 +1,52 @@
+{
+  "components": {
+    "schemas": {
+      "Days": {
+        "properties": {
+          "2024-01-01": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Event": {
+        "properties": {
+          "at": {
+            "default": "2024-01-01 12:34:56.5 +02:00",
+            "example": "2024-01-01T12:34:56Z",
+            "format": "date-time",
+            "type": "string"
+          },
+          "day": {
+            "example": "2024-01-01",
+            "format": "date",
+            "type": "string"
+          },
+          "quoted": {
+            "example": "2024-01-01",
+            "type": "string"
+          },
+          "tagged": {
+            "example": "2024-06-30",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Test",
+    "version": "0.0.1"
+  },
+  "openapi": "3.0.2",
+  "paths": {},
+  "x-used": [
+    {
+      "$ref": "#/components/schemas/Event"
+    },
+    {
+      "$ref": "#/components/schemas/Days"
+    }
+  ]
+}

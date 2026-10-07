@@ -40,11 +40,28 @@ func loadFile(pth string) (map[string]any, error) {
 }
 
 func loadYAML(r io.Reader) (map[string]any, error) {
-	data, err := loadAny(yaml.NewDecoder(r))
+	var doc yaml.Node
+	if err := yaml.NewDecoder(r).Decode(&doc); err != nil {
+		return nil, err
+	}
+	timestampsAsStrings(&doc)
+	data, err := loadAny(&doc)
 	if err != nil {
 		return nil, err
 	}
 	return fixMaps(data).(map[string]any), err
+}
+
+// timestampsAsStrings retags the timestamps in the YAML tree n as strings, so they
+// are kept as written in the source: JSON has no timestamp type, and they would
+// otherwise be decoded as [time.Time] (and so be reformatted).
+func timestampsAsStrings(n *yaml.Node) {
+	if n.Kind == yaml.ScalarNode && n.ShortTag() == "!!timestamp" {
+		n.Tag = "!!str"
+	}
+	for _, child := range n.Content {
+		timestampsAsStrings(child)
+	}
 }
 
 func fixMaps(v any) any {
