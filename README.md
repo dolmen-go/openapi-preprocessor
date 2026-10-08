@@ -72,6 +72,9 @@ Verify the archives you downloaded:
 
 ### Run with Docker or Podman
 
+<details>
+    <summary>Click for details</summary>
+
 A minimal image (just the static binary: no shell, runs as an unprivileged user)
 is published for `linux/amd64` and `linux/arm64` on the GitHub Container Registry:
 
@@ -128,6 +131,8 @@ binary into your own CI image with `COPY --from`, or download a release binary.
 The image has an SBOM attached (SPDX format, one for each platform):
 
     $ docker buildx imagetools inspect ghcr.io/dolmen-go/openapi-preprocessor:1 --format '{{ json .SBOM }}'
+
+</details>
 
 ## Usage
 
