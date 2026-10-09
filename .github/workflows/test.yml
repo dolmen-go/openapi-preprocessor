@@ -116,5 +116,26 @@ jobs:
           version: '~> v2'
           args: release --snapshot --clean
 
+      - name: Fingerprint the build
+        run: .goreleaser/fingerprint.sh > "$RUNNER_TEMP/fingerprint-1.txt"
+
+      # Otherwise the second build would just reuse the first one
+      - name: Clear the BuildKit cache
+        run: docker buildx prune --all --force
+
+      - name: Build release again (snapshot)
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          version: '~> v2'
+          args: release --snapshot --clean
+
+      - name: Check the build is reproducible
+        run: |
+          .goreleaser/fingerprint.sh > "$RUNNER_TEMP/fingerprint-2.txt"
+          cat "$RUNNER_TEMP/fingerprint-1.txt"
+          diff -u "$RUNNER_TEMP/fingerprint-1.txt" "$RUNNER_TEMP/fingerprint-2.txt"
+          # shellcheck disable=SC2046 # one path per archive, without spaces
+          .goreleaser/check-archives.sh "$(git log -1 --format=%ct)" $(jq -r '.[] | select(.type == "Archive" and .extra.Format == "tar.gz") | .path' dist/artifacts.json)
+
       - name: Smoke test the image
-        run: .goreleaser/smoke-test.sh "ghcr.io/dolmen-go/openapi-preprocessor:$(jq -r .version dist/metadata.json)-amd64"
+        run: SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" .goreleaser/smoke-test.sh "$(jq -r 'first(.[] | select(.type == "Docker Image" and .extra.Platforms == ["linux/amd64"])) | .name' dist/artifacts.json)"
