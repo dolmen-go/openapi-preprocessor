@@ -48,6 +48,9 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The pushed tag: when a final tag is on the same commit as a
+          # pre-release tag, GoReleaser would otherwise pick the pre-release
+          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
 
       # To run the arm64 image
       - uses: docker/setup-qemu-action@v4
