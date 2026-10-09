@@ -64,13 +64,22 @@ dockers_v2:
       - linux/amd64
       - linux/arm64
     sbom: "true"
+    # Reproducible images: BuildKit uses SOURCE_DATE_EPOCH for the image
+    # creation time and, with rewrite-timestamp, for the files in the layers.
+    # (Not in a top-level env: GoReleaser renders it before loading the git
+    # information, so .CommitTimestamp would be zero there.)
+    build_args:
+      SOURCE_DATE_EPOCH: "{{ .CommitTimestamp }}"
+    # GoReleaser adds --load (snapshot) or --push (release)
+    flags:
+      - "{{ if .IsSnapshot }}--output=type=docker,rewrite-timestamp=true{{ else }}--output=type=image,rewrite-timestamp=true{{ end }}"
     labels:
       org.opencontainers.image.title: "{{ .ProjectName }}"
       org.opencontainers.image.description: Preprocessor for OpenAPI specifications ($ref to external files, $inline, $merge)
       org.opencontainers.image.source: https://github.com/dolmen-go/openapi-preprocessor
       org.opencontainers.image.version: "{{ .Version }}"
       org.opencontainers.image.revision: "{{ .FullCommit }}"
-      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.created: "{{ .CommitDate }}"
       org.opencontainers.image.licenses: Apache-2.0
     # For a multi-arch image, GHCR reads these from the index.
     # Snapshot builds are single-platform (no index): an empty value drops them.
