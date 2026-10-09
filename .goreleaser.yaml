@@ -15,16 +15,32 @@ builds:
     # No -X: the version is read from the build info (see version() in main.go)
     ldflags:
       - -s -w
+    # Reproducible builds: the binary's mtime is the commit time
+    mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:
   - formats: [tar.gz]
     format_overrides:
       - goos: windows
         formats: [zip]
+    # Reproducible archives: fixed mtime, owner and mode, whatever the
+    # checkout time, the user and the umask
+    builds_info:
+      mtime: "{{ .CommitDate }}"
+      owner: root
+      group: root
+      mode: 0755
     files:
-      - LICENSE
-      - README.md
-      - man/man1/openapi-preprocessor.1
+      - src: LICENSE
+        info: &file_info
+          mtime: "{{ .CommitDate }}"
+          owner: root
+          group: root
+          mode: 0644
+      - src: README.md
+        info: *file_info
+      - src: man/man1/openapi-preprocessor.1
+        info: *file_info
 
 sboms:
   - artifacts: archive
