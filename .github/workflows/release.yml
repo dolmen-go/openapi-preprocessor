@@ -57,10 +57,11 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           image="ghcr.io/dolmen-go/openapi-preprocessor:${TAG#v}"
+          epoch=$(git log -1 --format=%ct)
           for platform in linux/amd64 linux/arm64; do
             echo "# $platform"
             docker pull --platform "$platform" "$image"
-            PLATFORM="$platform" .goreleaser/smoke-test.sh "$image" "$TAG"
+            SOURCE_DATE_EPOCH="$epoch" PLATFORM="$platform" .goreleaser/smoke-test.sh "$image" "$TAG"
           done
           echo "# SBOM"
           docker buildx imagetools inspect "$image" --format '{{ json .SBOM }}' > sbom.json
