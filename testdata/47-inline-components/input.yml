@@ -1,0 +1,16 @@
+openapi: 3.0.2
+info:
+  title: Test
+  version: "0.0.1"
+paths:
+  /:
+    get:
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+components:
+  $inline: schemas.yml

@@ -442,7 +442,7 @@ func (resolver *refResolver) expand(n node) error {
 		// /components are expanded only on demand (when targeted by a link)
 		// because expanding unused components would inject their external
 		// content into the final document.
-		if k == "components" && n.loc.Ptr == "" {
+		if k == "components" && n.loc.Ptr == "" && !hasDirective(obj[k]) {
 			continue
 		}
 		if err := resolver.expandProperty(n.loc, obj, k); err != nil {

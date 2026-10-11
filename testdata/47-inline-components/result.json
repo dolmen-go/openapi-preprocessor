@@ -1,0 +1,37 @@
+{
+    "components": {
+        "schemas": {
+            "Pet": {
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            }
+        }
+    },
+    "info": {
+        "title": "Test",
+        "version": "0.0.1"
+    },
+    "openapi": "3.0.2",
+    "paths": {
+        "/": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Pet"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    }
+                }
+            }
+        }
+    }
+}

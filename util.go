@@ -21,3 +21,14 @@ func stringProp(obj map[string]any, key string) (value string, ok bool) {
 	value, ok = v.(string)
 	return
 }
+
+func hasDirective(v any) bool {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return false
+	}
+	_, hasRef := m["$ref"]
+	_, hasInline := m["$inline"]
+	_, hasMerge := m["$merge"]
+	return hasRef || hasInline || hasMerge
+}
