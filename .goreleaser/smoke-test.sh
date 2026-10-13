@@ -21,8 +21,12 @@ testdata=$(cd "$(dirname "$0")/../testdata" && pwd)
 
 # Options to run as the current user, to read files only readable by their owner
 owner_opt="--user=$(id -u):$(id -g)"
+case "$engine" in
 # Rootless Podman: also map the current user to the same UID in the container
-[ "$engine" != podman ] || owner_opt="--userns=keep-id $owner_opt"
+podman) owner_opt="--userns=keep-id $owner_opt" ;;
+# Rootless Docker: the current user is root in the container
+*) "$engine" info --format '{{.SecurityOptions}}' 2> /dev/null | grep -q rootless && owner_opt=--user=0:0 ;;
+esac
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
