@@ -48,6 +48,9 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The pushed tag: when a final tag is on the same commit as a
+          # pre-release tag, GoReleaser would otherwise pick the pre-release
+          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
 
       # To run the arm64 image
       - uses: docker/setup-qemu-action@v4
@@ -57,10 +60,11 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           image="ghcr.io/dolmen-go/openapi-preprocessor:${TAG#v}"
+          epoch=$(git log -1 --format=%ct)
           for platform in linux/amd64 linux/arm64; do
             echo "# $platform"
             docker pull --platform "$platform" "$image"
-            PLATFORM="$platform" .goreleaser/smoke-test.sh "$image" "$TAG"
+            SOURCE_DATE_EPOCH="$epoch" PLATFORM="$platform" .goreleaser/smoke-test.sh "$image" "$TAG"
           done
           echo "# SBOM"
           docker buildx imagetools inspect "$image" --format '{{ json .SBOM }}' > sbom.json

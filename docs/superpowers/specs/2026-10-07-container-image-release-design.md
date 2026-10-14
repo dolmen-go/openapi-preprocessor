@@ -1,5 +1,9 @@
 # Container image and release binaries — design
 
+> **Notice:** partially superseded by
+> [2026-10-09-reproducible-release-design.md](2026-10-09-reproducible-release-design.md)
+> (timestamps, the `created` label, archive ownership, verification).
+
 Date: 2026-10-07
 Status: approved; updated after implementation and review with the decisions
 taken then (Go toolchain, smoke test script, Podman options, snapshot

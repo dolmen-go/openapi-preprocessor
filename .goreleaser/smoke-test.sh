@@ -8,6 +8,8 @@
 #   CONTAINER_ENGINE  docker (default) or podman
 #   PLATFORM          if set, passed as --platform to 'run' (ex: linux/arm64)
 #   MOUNT_OPTS        options of the testdata mounts (default: ro; ro,Z on SELinux hosts)
+#   SOURCE_DATE_EPOCH if set, the image and its files must be dated at this
+#                     time (Unix seconds)
 set -eu
 
 image=${1:?usage: $0 <image> [<expected -version output>]}
@@ -19,8 +21,12 @@ testdata=$(cd "$(dirname "$0")/../testdata" && pwd)
 
 # Options to run as the current user, to read files only readable by their owner
 owner_opt="--user=$(id -u):$(id -g)"
+case "$engine" in
 # Rootless Podman: also map the current user to the same UID in the container
-[ "$engine" != podman ] || owner_opt="--userns=keep-id $owner_opt"
+podman) owner_opt="--userns=keep-id $owner_opt" ;;
+# Rootless Docker: the current user is root in the container
+*) "$engine" info --format '{{.SecurityOptions}}' 2> /dev/null | grep -q rootless && owner_opt=--user=0:0 ;;
+esac
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -36,7 +42,9 @@ fail() {
 # shellcheck disable=SC2086
 cid=$("$engine" create $platform_opt "$image")
 user=$("$engine" container inspect --format '{{.Config.User}}' "$cid")
-"$engine" export "$cid" | tar --numeric-owner -tvf - > "$tmp/files"
+# The image the container was created from: the right platform variant
+image_id=$("$engine" container inspect --format '{{.Image}}' "$cid")
+"$engine" export "$cid" | TZ=UTC tar --numeric-owner --full-time -tvf - > "$tmp/files"
 "$engine" rm "$cid" > /dev/null
 
 [ "$user" = 65532:65532 ] || fail "image user: got '$user', want '65532:65532'"
@@ -60,6 +68,25 @@ if awk '$2 ~ /^65532\// || ($1 !~ /^l/ && substr($1, 9, 1) == "w")' "$tmp/files"
 	fail "image files above are writable by the image's user"
 fi
 echo "ok - image files are read-only for the image's user"
+
+# Reproducible build: the image and its files are dated SOURCE_DATE_EPOCH
+if [ -n "${SOURCE_DATE_EPOCH:-}" ]; then
+	case "$engine" in
+	podman) created=$("$engine" image inspect --format '{{.Created.Unix}}' "$image_id") ;;
+	*) created=$(date -u -d "$("$engine" image inspect --format '{{.Created}}' "$image_id")" +%s) ;;
+	esac
+	[ "$created" = "$SOURCE_DATE_EPOCH" ] || fail "image created: got $created, want $SOURCE_DATE_EPOCH"
+	echo "ok - image created at SOURCE_DATE_EPOCH ($SOURCE_DATE_EPOCH)"
+
+	want_time=$(TZ=UTC date -d "@$SOURCE_DATE_EPOCH" '+%Y-%m-%d %H:%M:%S')
+	for p in usr usr/local usr/local/bin usr/local/bin/openapi-preprocessor work; do
+		t=$(entry "$p" | awk '{ print $4 " " $5 }')
+		# Docker (BuildKit) creates /work in the image, Podman (Buildah) only at run time
+		[ -n "$t" ] || [ "$p" != work ] || continue
+		[ "$t" = "$want_time" ] || fail "image file $p: dated '$t' UTC, want $want_time"
+	done
+	echo "ok - image files dated SOURCE_DATE_EPOCH"
+fi
 
 # run_tool <dir> <arg>...: run the image with <dir> mounted on /work.
 # $extra_opts holds additional options for the container engine.
