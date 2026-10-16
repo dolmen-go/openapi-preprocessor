@@ -1,0 +1,104 @@
+#!/bin/sh
+# Git pre-push hook: release tags (v and a semantic version, e.g. v1.0.0 or
+# v1.0.0-rc.1) must be annotated (git tag -a), and the message of a public
+# version (no pre-release) must have at least 3 lines, to include the
+# changelog.
+# Spec: docs/superpowers/specs/2026-10-15-annotated-release-tags-design.md
+#
+# Enable it once per clone: git config core.hooksPath .githooks
+#
+# Git gives the name of the remote (or its URL) and its URL as arguments,
+# and one line per ref to update on the remote (refs already up to date are
+# not listed):
+#   <local ref> <local sha> <remote ref> <remote sha>
+set -eu
+
+# A release tag: v and a semantic version (https://semver.org/spec/v2.0.0.html)
+release_tag='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
+
+# message_lines <sha>: the number of lines of the message of the annotated
+# tag <sha>, as stored (blank lines included), without the signature of a
+# signed tag
+message_lines() {
+	git cat-file tag "$1" | awk '
+		!body { if ($0 == "") body = 1; next }
+		/^-----BEGIN (PGP SIGNATURE|PGP MESSAGE|SSH SIGNATURE|SIGNED MESSAGE)-----$/ { exit }
+		{ n++ }
+		END { print n + 0 }'
+}
+
+# shell_word <string>: <string> as is if it has only characters that no
+# shell changes, else single-quoted
+shell_word() {
+	case "$1" in
+	*[!A-Za-z0-9._/:@+,%-]*) printf "'%s'" "$(printf %s "$1" | sed "s/'/'\\\\''/g")" ;;
+	*) printf %s "$1" ;;
+	esac
+}
+
+remote=$(shell_word "$1")
+status=0
+while read -r line; do
+	# The local ref is written as given on the command line, so it may contain
+	# spaces (HEAD@{1 day ago}): the other fields are taken from the end
+	line=${line% *}
+	remote_ref=${line##* }
+	line=${line% *}
+	local_sha=${line##* }
+	local_ref=${line% *}
+	case "$remote_ref" in
+	refs/tags/*) ;;
+	*) continue ;;
+	esac
+	tag=${remote_ref#refs/tags/}
+	printf '%s\n' "$tag" | grep -Eq "$release_tag" || continue
+	# Deletion: the local sha is all zeros (40 or 64)
+	case "$local_sha" in
+	*[!0]*) ;;
+	*) continue ;;
+	esac
+
+	# The kind of tag, decided without the build metadata
+	version=${tag%%+*}
+	case "$version" in
+	*-*)
+		case "${version#*-}" in
+		rc | rc.*) kind=rc ;;
+		*) kind=pre ;;
+		esac
+		;;
+	*) kind=public ;;
+	esac
+
+	if [ "$(git cat-file -t "$local_sha")" != tag ]; then
+		echo "pre-push: $tag is a lightweight tag; release tags (v*) must be annotated." >&2
+	else
+		# Annotated: only the message of a public version is checked
+		[ "$kind" = public ] || continue
+		lines=$(message_lines "$local_sha")
+		[ "$lines" -lt 3 ] || continue
+		if [ "$lines" = 1 ]; then
+			lines="1 line"
+		else
+			lines="$lines lines"
+		fi
+		echo "pre-push: $tag: the tag message has $lines; public versions need at least 3, including the changelog." >&2
+	fi
+
+	# Pushed from the local tag of the same name, the fix replaces it and the
+	# push can be run again; else the fix uses the pushed object, and the new
+	# tag must be pushed
+	if [ "$local_ref" = "$remote_ref" ]; then
+		target=$tag
+	else
+		target=$local_sha
+	fi
+	case "$kind" in
+	rc) echo "  To fix it: git tag -a -f -m 'Release candidate $tag' $tag $target" >&2 ;;
+	pre) echo "  To fix it: git tag -a -f -m 'Pre-release $tag' $tag $target" >&2 ;;
+	public) echo "  Replace it with an annotated tag on the same commit: git tag -a -f $tag '$target^{}'" >&2 ;;
+	esac
+	[ "$target" = "$tag" ] || echo "  Then push it: git push $remote $tag" >&2
+	status=1
+done
+exit "$status"

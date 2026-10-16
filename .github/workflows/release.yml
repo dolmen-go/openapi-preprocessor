@@ -1,6 +1,11 @@
 name: Release
 
-# To release: git tag -a vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z
+# To release, tag with an annotated tag and push the tag:
+#   git tag -a -m 'Release candidate vX.Y.Z-rc.N' vX.Y.Z-rc.N  (pre-release)
+#   git tag -a vX.Y.Z  (public version: a message of 3 lines or more, with the changelog)
+#   git push origin <tag>
+# Enable the check of release tags once per clone with
+#   git config core.hooksPath .githooks
 # Tags with a pre-release suffix (ex: v1.0.0-rc.2) make a GitHub pre-release
 # and are not published as the latest image.
 # The release is also built (snapshot, not published) by the release-dry-run
