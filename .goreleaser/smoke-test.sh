@@ -8,8 +8,8 @@
 #   CONTAINER_ENGINE  docker (default) or podman
 #   PLATFORM          if set, passed as --platform to 'run' (ex: linux/arm64)
 #   MOUNT_OPTS        options of the testdata mounts (default: ro; ro,Z on SELinux hosts)
-#   SOURCE_DATE_EPOCH if set, the image and its files must be dated at this
-#                     time (Unix seconds)
+#   SOURCE_DATE_EPOCH if set, the image must be created at this time (Unix
+#                     seconds)
 set -eu
 
 image=${1:?usage: $0 <image> [<expected -version output>]}
@@ -51,8 +51,9 @@ image_id=$("$engine" container inspect --format '{{.Image}}' "$cid")
 echo "ok - image user is 65532:65532"
 
 # entry <path>: print the line of <path> in the list of the image files
+# (ko's layer names its files /ko-app/...)
 entry() {
-	awk -v path="$1" '{ p = $NF; sub(/^\.\//, "", p); sub(/\/$/, "", p) } p == path' "$tmp/files"
+	awk -v path="$1" '{ p = $NF; sub(/^\.?\//, "", p); sub(/\/$/, "", p) } p == path' "$tmp/files"
 }
 # check_entry <path> <mode>: the image has <path>, owned by 0:0, with <mode>
 check_entry() {
@@ -61,15 +62,16 @@ check_entry() {
 	*) fail "image file $1: want $2 0/0, got: '$(entry "$1")'" ;;
 	esac
 }
-check_entry usr/local/bin/openapi-preprocessor -r-xr-xr-x
-# Docker (BuildKit) creates /work in the image, Podman (Buildah) only at run time
-[ -z "$(entry work)" ] || check_entry work drwxr-xr-x
+check_entry ko-app/openapi-preprocessor -r-xr-xr-x
+# From the base image (.goreleaser/base.sh)
+check_entry work drwxr-xr-x
 if awk '$2 ~ /^65532\// || ($1 !~ /^l/ && substr($1, 9, 1) == "w")' "$tmp/files" | grep .; then
 	fail "image files above are writable by the image's user"
 fi
 echo "ok - image files are read-only for the image's user"
 
-# Reproducible build: the image and its files are dated SOURCE_DATE_EPOCH
+# Reproducible build: the image is dated SOURCE_DATE_EPOCH. Its files are
+# dated 1970-01-01 by ko and base.sh; reproducibility is checked by digests.
 if [ -n "${SOURCE_DATE_EPOCH:-}" ]; then
 	case "$engine" in
 	podman) created=$("$engine" image inspect --format '{{.Created.Unix}}' "$image_id") ;;
@@ -77,15 +79,6 @@ if [ -n "${SOURCE_DATE_EPOCH:-}" ]; then
 	esac
 	[ "$created" = "$SOURCE_DATE_EPOCH" ] || fail "image created: got $created, want $SOURCE_DATE_EPOCH"
 	echo "ok - image created at SOURCE_DATE_EPOCH ($SOURCE_DATE_EPOCH)"
-
-	want_time=$(TZ=UTC date -d "@$SOURCE_DATE_EPOCH" '+%Y-%m-%d %H:%M:%S')
-	for p in usr usr/local usr/local/bin usr/local/bin/openapi-preprocessor work; do
-		t=$(entry "$p" | awk '{ print $4 " " $5 }')
-		# Docker (BuildKit) creates /work in the image, Podman (Buildah) only at run time
-		[ -n "$t" ] || [ "$p" != work ] || continue
-		[ "$t" = "$want_time" ] || fail "image file $p: dated '$t' UTC, want $want_time"
-	done
-	echo "ok - image files dated SOURCE_DATE_EPOCH"
 fi
 
 # run_tool <dir> <arg>...: run the image with <dir> mounted on /work.
