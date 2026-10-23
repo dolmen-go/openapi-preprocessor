@@ -4,6 +4,11 @@
 > [2026-10-09-reproducible-release-design.md](2026-10-09-reproducible-release-design.md)
 > (timestamps, the `created` label, archive ownership, verification).
 
+> **Notice:** partially superseded by
+> [2026-10-16-ko-container-images-design.md](2026-10-16-ko-container-images-design.md)
+> (everything about the container images: built by ko, base image, SBOM,
+> checks in reproduce.sh and CI).
+
 Date: 2026-10-07
 Status: approved; updated after implementation and review with the decisions
 taken then (Go toolchain, smoke test script, Podman options, snapshot

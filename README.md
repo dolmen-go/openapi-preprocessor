@@ -117,7 +117,7 @@ Use it like a locally installed command:
 
 Copy the binary into your own image:
 
-    COPY --from=ghcr.io/dolmen-go/openapi-preprocessor:1 /usr/local/bin/openapi-preprocessor /usr/local/bin/
+    COPY --from=ghcr.io/dolmen-go/openapi-preprocessor:1 /ko-app/openapi-preprocessor /usr/local/bin/
 
 In a GitHub Actions workflow:
 
@@ -128,9 +128,15 @@ As the image has no shell, it can't be the image of a CI job (GitLab CI `image:`
 GitHub Actions `container:`). Instead, run it with `docker run` as above, copy the
 binary into your own CI image with `COPY --from`, or download a release binary.
 
-The image has an SBOM attached (SPDX format, one for each platform):
+Each platform image has an SBOM (SPDX format), published next to it as
+`sha256-<image digest>.sbom`. Read it with [crane](https://github.com/google/go-containerregistry/tree/main/cmd/crane):
 
-    $ docker buildx imagetools inspect ghcr.io/dolmen-go/openapi-preprocessor:1 --format '{{ json .SBOM }}'
+    $ digest=$(crane digest --platform linux/amd64 ghcr.io/dolmen-go/openapi-preprocessor:1)
+    $ crane blob ghcr.io/dolmen-go/openapi-preprocessor@$(crane manifest ghcr.io/dolmen-go/openapi-preprocessor:sha256-${digest#sha256:}.sbom | jq -r '.layers[0].digest')
+
+It does not list the Go version. The SBOM of the matching `linux` archive of
+the GitHub release (`<archive>.sbom.json`) does: the binary in the image is the
+binary of that archive.
 
 </details>
 
