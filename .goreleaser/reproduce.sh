@@ -1,31 +1,36 @@
 #!/bin/sh
-# Reproduces locally the release <tag> made by GoReleaser in CI, and checks:
+# Reproduces locally the release <tag> made by GoReleaser in CI: GoReleaser
+# builds the archives and publishes the images to a local registry, then the
+# script checks:
 # - unless -n, that the archives are identical to those of the GitHub Release;
 # - that the archive entries are owned by 0:0 and dated at the commit time;
-# - that two builds of the images give the same images: by GoReleaser in
-#   snapshot mode if docker buildx is available, else by Podman (the images are
-#   not compared with CI's);
-# - the amd64 image with the smoke test.
+# - unless -n, that the image index is identical to the one on GHCR (with -n,
+#   its digest is printed);
+# - that the binary in each platform image is the binary of the archive.
 #
 # Usage: .goreleaser/reproduce.sh [-n] <tag>
-#   -n  don't compare with the GitHub Release (for a tag that has none)
+#   -n  don't compare with the GitHub Release and GHCR (for a tag that has none)
 #
 # Nothing is installed: run it with the Go and GoReleaser versions shown in
 # the CI logs of the release, e.g.:
 #   mise exec go@1.27.1 goreleaser@2.18.2 -- .goreleaser/reproduce.sh v1.0.0-rc.3
-# Requires: git, Docker with buildx (or Podman), jq, curl, GNU tar.
+# Requires: git, Go, GoReleaser, jq, curl, GNU tar, and network access (Go
+# module proxy for crane, GHCR for the base and the published images, GitHub
+# for the checksums). No Docker, no Podman.
 set -eu
 
 # Not read from GoReleaser's outputs: the GitHub repository (GoReleaser needs
-# it as the remote URL before it runs), and the image platforms and Dockerfile
-# of dockers_v2 in .goreleaser.yaml (only in dist/config.yaml, which is YAML)
+# it as the remote URL before it runs)
 github=dolmen-go/openapi-preprocessor
-platforms="linux/amd64 linux/arm64"
-dockerfile=.goreleaser/Dockerfile
+# Also in base.sh and ../.github/workflows/release.yml: the
+# go-containerregistry version GoReleaser embeds
+crane_version=v0.22.1
 
 compare=1
+opt_n=
 if [ "${1:-}" = -n ]; then
 	compare=0
+	opt_n="-n "
 	shift
 fi
 tag=${1:?usage: $0 [-n] <tag>}
@@ -37,57 +42,35 @@ fail() {
 	exit 1
 }
 
-# Image builder: Docker with buildx (GoReleaser builds the images), else
-# Podman. The version check rejects Podman's docker emulation (podman-docker),
-# which cannot take the buildx options of dockers_v2.
-if docker buildx version 2> /dev/null | grep -q 'github.com/docker/buildx' && docker info > /dev/null 2>&1; then
-	builder=docker
-else
-	builder=podman
-fi
-
 tmp=$(mktemp -d)
-# The images built here, by name and by ID
-image_names=
-image_ids=
-# The buildx builders created here (Docker path)
-builders=
-# The images present before the run (IDs without sha256:, and names), which
-# cleanup must never remove, even when a build here gives the same image
-preexisting=" $("$builder" images -a --no-trunc --format '{{.ID}} {{.Repository}}:{{.Tag}}' 2> /dev/null |
-	sed 's/sha256://g' | tr '\n' ' ') "
+registry_pid=
 cleanup() {
-	# Names first: removing a name untags the image, and removes it with its
-	# last name; then IDs, for the images left untagged. One by one and
-	# without -f: an image that still has another name stays.
-	for image in $image_names $image_ids; do
-		case "$preexisting" in *" ${image#sha256:} "*) continue ;; esac
-		"$builder" rmi "$image" > /dev/null 2>&1 || true
-	done
-	for buildx_builder in $builders; do
-		docker buildx rm "$buildx_builder" > /dev/null 2>&1 || true
-	done
+	[ -z "$registry_pid" ] || kill "$registry_pid" 2> /dev/null || true
 	rm -rf "$tmp"
 }
 trap cleanup EXIT
-# dash runs no EXIT trap when a signal kills it (e.g. Ctrl-C): exit instead,
-# with the status of a death by that signal
+# dash runs no EXIT trap when a signal kills it (e.g. Ctrl-C, or the reader
+# of the output exiting early): exit instead, with the status of a death by
+# that signal
 trap 'exit 129' HUP
 trap 'exit 130' INT
+trap 'exit 141' PIPE
 trap 'exit 143' TERM
 
 # Go settings not set in CI, which would change the binaries: from the
-# environment, and from the user's go env file (go env -w). Use the Go on
-# PATH (the version of the CI logs), never a toolchain switch.
-unset GOFLAGS GOEXPERIMENT GOFIPS140
+# environment, and from the user's go env file (go env -w). ko lets the
+# environment override its own target settings. Use the Go on PATH (the
+# version of the CI logs), never a toolchain switch.
+unset GOFLAGS GOEXPERIMENT GOFIPS140 GOOS GOARCH GOAMD64 GOARM64
 export GOENV=off GOTOOLCHAIN=local
+# No token: none is needed (release.disable), and a stale GITHUB_TOKEN would
+# be sent to GHCR for the public base image, which GHCR refuses
+unset GITHUB_TOKEN GITLAB_TOKEN GITEA_TOKEN
+# ko writes the image creation time in the local time zone; CI runs in UTC
+export TZ=UTC
 
 echo "# $(go version)"
 echo "# goreleaser $(goreleaser --version 2>&1 | sed -n 's/^GitVersion: *//p')"
-case "$builder" in
-docker) echo "# docker: $(docker buildx version)" ;;
-podman) echo "# podman $(podman version --format '{{.Client.Version}}')" ;;
-esac
 
 # A private repository holding only the tag and its history, as in CI:
 # untracked files of the working copy would make Go stamp +dirty into the
@@ -101,17 +84,49 @@ git config core.attributesFile /dev/null
 git config log.showSignature false
 git fetch --quiet --no-tags "$repo" "refs/tags/$tag:refs/tags/$tag" || fail "tag $tag not found in $repo"
 git checkout --quiet --detach "refs/tags/$tag"
-# GoReleaser needs the GitHub repository (nothing is published)
+# GoReleaser needs the GitHub repository (nothing is published there)
 git remote add origin "https://github.com/$github.git"
 epoch=$(git show -s --format=%ct HEAD)
 
-# Release mode, as in CI, for the archives. No images: dockers_v2 builds and
-# pushes in a single step, so it builds nothing without publishing. With
-# Podman, docker is skipped too: not needed today, but it states that
-# GoReleaser builds no image on this path, whatever future versions do.
-skip=publish,announce,sbom
-[ "$builder" = docker ] || skip=$skip,docker
-GORELEASER_CURRENT_TAG=$tag goreleaser release --clean --skip="$skip" > "$tmp/goreleaser.log" 2>&1 || {
+# Tags released with dockers_v2: KO_DOCKER_REPO would not apply, GoReleaser
+# would push the images to GHCR (and, with a GITHUB_TOKEN, change the GitHub
+# Release). Their own reproduce.sh handles them.
+grep -q '^kos:' .goreleaser.yaml || {
+	echo "$tag builds its images without ko: run the reproduce.sh of $tag instead:" >&2
+	echo "  git clone --branch $tag $repo <directory>" >&2
+	echo "  <directory>/.goreleaser/reproduce.sh $opt_n$tag" >&2
+	fail "$tag: no kos in .goreleaser.yaml"
+}
+
+# crane, built once: with 'go run', stopping the registry would stop 'go run'
+# but not the registry it started
+GOBIN="$tmp/bin" go install "github.com/google/go-containerregistry/cmd/crane@$crane_version" ||
+	fail "can't install crane $crane_version"
+crane=$tmp/bin/crane
+echo "# crane $crane_version"
+
+# A local registry, in memory, on a free port
+"$crane" registry serve --address 127.0.0.1:0 > "$tmp/registry.log" 2>&1 &
+registry_pid=$!
+port=
+tries=0
+while [ -z "$port" ]; do
+	kill -0 "$registry_pid" 2> /dev/null || {
+		cat "$tmp/registry.log" >&2
+		fail "the local registry stopped"
+	}
+	tries=$((tries + 1))
+	[ "$tries" -le 100 ] || fail "the local registry did not start in 10 s"
+	sleep 0.1
+	port=$(sed -n 's/.*serving on port \([0-9]*\).*/\1/p' "$tmp/registry.log")
+done
+local_repo=127.0.0.1:$port/openapi-preprocessor
+echo "# registry 127.0.0.1:$port"
+
+# Release mode, as in CI: the archives in dist/, the images pushed to the
+# local registry, no GitHub Release (release.disable in .goreleaser.yaml)
+KO_DOCKER_REPO=$local_repo GORELEASER_CURRENT_TAG=$tag \
+	goreleaser release --clean --skip=announce,sbom > "$tmp/goreleaser.log" 2>&1 || {
 	tail -n 20 "$tmp/goreleaser.log" >&2
 	fail "goreleaser release"
 }
@@ -149,72 +164,41 @@ fi
 # shellcheck disable=SC2046 # one path per archive, without spaces
 "$here/check-archives.sh" "$epoch" $(jq -r '.[] | select(.type == "Archive" and .extra.Format == "tar.gz") | .path' dist/artifacts.json)
 
-# Images. With Docker, GoReleaser builds them in snapshot mode, as in the CI
-# dry run (this replaces the release-mode dist/, done with above).
-if [ "$builder" = docker ]; then
-	for run in 1 2; do
-		# A throwaway BuildKit builder for each build, with the docker-container
-		# driver as in CI (docker/setup-buildx-action): it starts with an empty
-		# cache, so the second build cannot reuse the first one, and the user's
-		# builders and their caches are left alone. It pulls moby/buildkit.
-		# Named after the random suffix of $tmp, not the PID: the BuildKit
-		# container is named after the builder, and a run in another PID
-		# namespace (e.g. a devcontainer) on the same daemon would share it.
-		# Lowercase, as buildx stores it.
-		buildx_builder=reproduce-$(printf %s "${tmp##*.}" | tr '[:upper:]' '[:lower:]')-$run
-		# Recorded before its creation: a builder whose bootstrap fails (e.g. the
-		# pull of moby/buildkit) may still be registered, and must be removed
-		builders="$builders $buildx_builder"
-		docker buildx create --name "$buildx_builder" --driver docker-container --bootstrap > "$tmp/buildx.log" 2>&1 || {
-			cat "$tmp/buildx.log" >&2
-			fail "can't create the buildx builder $buildx_builder"
-		}
-		if [ "$run" = 1 ]; then
-			# "Buildkit:" before buildx 0.13
-			buildkit=$(docker buildx inspect "$buildx_builder" | sed -n 's/^Build[Kk]it\( version\)\{0,1\}: *//p')
-			echo "# buildkit ${buildkit:-version unknown} (docker-container driver)"
-		fi
-		BUILDX_BUILDER=$buildx_builder GORELEASER_CURRENT_TAG=$tag \
-			goreleaser release --snapshot --clean --skip=sbom > "$tmp/goreleaser.log" 2>&1 || {
-			tail -n 20 "$tmp/goreleaser.log" >&2
-			fail "goreleaser release --snapshot"
-		}
-		image_names="$image_names $(jq -r '.[] | select(.type == "Docker Image") | .name' dist/artifacts.json)"
-		CONTAINER_ENGINE=docker "$here/fingerprint.sh" > "$tmp/fingerprint-$run.txt"
-		# Also by ID: if the second build differs, it takes the names of the first
-		image_ids="$image_ids $(awk '$1 == "image" { print $3 }' "$tmp/fingerprint-$run.txt")"
-	done
-	diff -u "$tmp/fingerprint-1.txt" "$tmp/fingerprint-2.txt" || fail "two snapshot builds give different images or archives"
-	echo "ok - two GoReleaser snapshot builds give the same images and archives"
-	amd64_image=$(jq -r 'first(.[] | select(.type == "Docker Image" and .extra.Platforms == ["linux/amd64"])) | .name' dist/artifacts.json)
-	[ -n "$amd64_image" ] || fail "no linux/amd64 image in dist/artifacts.json"
-	CONTAINER_ENGINE=docker SOURCE_DATE_EPOCH=$epoch "$here/smoke-test.sh" "$amd64_image" "$tag"
-	exit 0
+# Images: the index GoReleaser pushed to the local registry
+jq -r '.[] | select(.type == "Docker Manifest") | .extra.Digest' dist/artifacts.json > "$tmp/index.txt"
+[ "$(wc -l < "$tmp/index.txt")" -eq 1 ] || fail "want one Docker Manifest in dist/artifacts.json, got $(wc -l < "$tmp/index.txt")"
+index=$(cat "$tmp/index.txt")
+"$crane" manifest "$local_repo@$index" |
+	jq -r '.manifests[] | "\(.platform.os) \(.platform.architecture) \(.digest)"' > "$tmp/platforms.txt"
+[ -s "$tmp/platforms.txt" ] || fail "no platform images in the index $index"
+if [ "$compare" = 1 ]; then
+	published=ghcr.io/$github:$(jq -r .version dist/metadata.json)
+	published_index=$("$crane" digest "$published") || fail "can't read $published"
+	[ "$index" = "$published_index" ] || {
+		while read -r os arch digest; do
+			echo "$os/$arch: local $digest, published $("$crane" digest --platform "$os/$arch" "$published")" >&2
+		done < "$tmp/platforms.txt"
+		fail "image index: local $index, published $published_index"
+	}
+	echo "ok - image index identical to $published ($index)"
+else
+	echo "# index $index"
 fi
 
-# With Podman: build context laid out as GoReleaser does: <os>/<arch>/<binary name>
-for platform in $platforms; do
-	jq -r --arg os "${platform%/*}" --arg arch "${platform#*/}" \
+# The binary in each platform image is the one of the archive
+while read -r os arch digest; do
+	jq -r --arg os "$os" --arg arch "$arch" \
 		'.[] | select(.type == "Binary" and .goos == $os and .goarch == $arch) | "\(.path) \(.name)"' \
 		dist/artifacts.json > "$tmp/binary"
-	read -r bin name < "$tmp/binary" || fail "no $platform binary in dist/artifacts.json"
-	mkdir -p "$tmp/ctx/$platform"
-	cp -p "$bin" "$tmp/ctx/$platform/$name"
-done
-
-# build <platform>: build the image of the tag, print its ID
-build() {
-	podman build --quiet --no-cache --layers=false --platform "$1" --identity-label=false \
-		--source-date-epoch="$epoch" --rewrite-timestamp \
-		-f "$dockerfile" "$tmp/ctx"
-}
-for platform in $platforms; do
-	id1=$(build "$platform")
-	id2=$(build "$platform")
-	image_ids="$image_ids $id1 $id2"
-	[ "$id1" = "$id2" ] || fail "$platform: two builds give different images: $id1 $id2"
-	echo "ok - $platform: two builds give the same image $id1"
-	[ "$platform" != linux/amd64 ] || amd64_image=$id1
-done
-
-CONTAINER_ENGINE=podman SOURCE_DATE_EPOCH=$epoch "$here/smoke-test.sh" "$amd64_image" "$tag"
+	read -r bin name < "$tmp/binary" || fail "$os/$arch: no binary in dist/artifacts.json"
+	"$crane" export "$local_repo@$digest" "$tmp/image.tar"
+	# ko's layer names the binary /ko-app/<name>: -P keeps the leading /
+	tar -xOPf "$tmp/image.tar" --wildcards "*ko-app/$name" > "$tmp/image-bin" 2> "$tmp/tar.err" || {
+		cat "$tmp/tar.err" >&2
+		fail "$os/$arch: no ko-app/$name in the image"
+	}
+	want=$(sha256sum < "$bin" | cut -d' ' -f1)
+	got=$(sha256sum < "$tmp/image-bin" | cut -d' ' -f1)
+	[ "$got" = "$want" ] || fail "$os/$arch: image binary $got, archived binary $want"
+	echo "ok - $os/$arch: image binary identical to the archived one"
+done < "$tmp/platforms.txt"
