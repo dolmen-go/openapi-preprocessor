@@ -85,7 +85,10 @@ jobs:
           # https://github.com/dolmen-go/openapi-preprocessor/settings/secrets/actions
           token: ${{ secrets.CODECOV_TOKEN }}
 
-  # Build the release as release.yml does, without publishing it
+  # Build the release as release.yml does, without publishing it. One build:
+  # two builds in the same job would share Go's build cache, so they would
+  # prove little. Reproducibility is checked by .goreleaser/reproduce.sh
+  # against a published release, images included.
   release-dry-run:
     needs: [ test ]
     runs-on: ubuntu-latest
@@ -99,8 +102,6 @@ jobs:
         with:
           go-version: stable
 
-      - uses: docker/setup-buildx-action@v4
-
       # For the SBOMs of the archives
       - uses: anchore/sbom-action/download-syft@v0
 
@@ -110,32 +111,21 @@ jobs:
           version: '~> v2'
           args: check
 
+      # ko loads the linux/amd64 image into the runner's Docker daemon
       - name: Build release (snapshot)
         uses: goreleaser/goreleaser-action@v7
         with:
           version: '~> v2'
           args: release --snapshot --clean
 
-      - name: Fingerprint the build
-        run: .goreleaser/fingerprint.sh > "$RUNNER_TEMP/fingerprint-1.txt"
-
-      # Otherwise the second build would just reuse the first one
-      - name: Clear the BuildKit cache
-        run: docker buildx prune --all --force
-
-      - name: Build release again (snapshot)
-        uses: goreleaser/goreleaser-action@v7
-        with:
-          version: '~> v2'
-          args: release --snapshot --clean
-
-      - name: Check the build is reproducible
+      - name: Check the archives
         run: |
-          .goreleaser/fingerprint.sh > "$RUNNER_TEMP/fingerprint-2.txt"
-          cat "$RUNNER_TEMP/fingerprint-1.txt"
-          diff -u "$RUNNER_TEMP/fingerprint-1.txt" "$RUNNER_TEMP/fingerprint-2.txt"
           # shellcheck disable=SC2046 # one path per archive, without spaces
           .goreleaser/check-archives.sh "$(git log -1 --format=%ct)" $(jq -r '.[] | select(.type == "Archive" and .extra.Format == "tar.gz") | .path' dist/artifacts.json)
 
       - name: Smoke test the image
-        run: SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" .goreleaser/smoke-test.sh "$(jq -r 'first(.[] | select(.type == "Docker Image" and .extra.Platforms == ["linux/amd64"])) | .name' dist/artifacts.json)"
+        run: |
+          image=$(jq -r 'first(.[] | select(.type == "Docker Manifest")) | .name' dist/artifacts.json)
+          [ -n "$image" ] || { echo "FAIL: no Docker Manifest in dist/artifacts.json" >&2; exit 1; }
+          echo "# $image"
+          SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" .goreleaser/smoke-test.sh "$image"

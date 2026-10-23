@@ -1,5 +1,10 @@
 # Reproducible release artifacts — design
 
+> **Notice:** partially superseded by
+> [2026-10-16-ko-container-images-design.md](2026-10-16-ko-container-images-design.md)
+> (everything about the container images: built by ko, base image, SBOM,
+> checks in reproduce.sh and CI).
+
 Date: 2026-10-09
 Status: approved in brainstorming, pending spec review
 Partially supersedes: [2026-10-07-container-image-release-design.md](2026-10-07-container-image-release-design.md)

@@ -35,11 +35,10 @@ jobs:
       - name: Run tests
         run: go test ./...
 
-      - uses: docker/setup-buildx-action@v4
-
       # For the SBOMs of the archives
       - uses: anchore/sbom-action/download-syft@v0
 
+      # ko pushes the images with Docker's credentials
       - uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -56,9 +55,19 @@ jobs:
           # The pushed tag: when a final tag is on the same commit as a
           # pre-release tag, GoReleaser would otherwise pick the pre-release
           GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
+          # ko writes the image creation time in the local time zone, which
+          # changes the image digests: runners are in UTC, this makes it explicit
+          TZ: UTC
 
       # To run the arm64 image
       - uses: docker/setup-qemu-action@v4
+
+      # To read the SBOMs of the images. Same version as in
+      # .goreleaser/base.sh and .goreleaser/reproduce.sh
+      - name: Install crane
+        run: |
+          GOBIN="$RUNNER_TEMP/bin" go install github.com/google/go-containerregistry/cmd/crane@v0.22.1
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
       - name: Check the published image
         env:
@@ -72,10 +81,19 @@ jobs:
             SOURCE_DATE_EPOCH="$epoch" PLATFORM="$platform" .goreleaser/smoke-test.sh "$image" "$TAG"
           done
           echo "# SBOM"
-          docker buildx imagetools inspect "$image" --format '{{ json .SBOM }}' > sbom.json
+          # ko pushes the SBOM of each platform image as sha256-<digest>.sbom.
+          # It lists the modules linked into the binary, not the Go version
+          # (stdlib).
+          repository=${image%:*}
           for platform in linux/amd64 linux/arm64; do
-            for pkg in github.com/dolmen-go/openapi-preprocessor github.com/dolmen-go/jsonptr github.com/mohae/deepcopy go.yaml.in/yaml/v3 stdlib; do
-              jq -e --arg p "$platform" --arg pkg "$pkg" '.[$p].SPDX.packages | map(.name) | index($pkg)' sbom.json > /dev/null \
+            digest=$(crane digest --platform "$platform" "$image")
+            layer=$(crane manifest "$repository:sha256-${digest#sha256:}.sbom" | jq -r '.layers[0].digest')
+            crane blob "$repository@$layer" > sbom.json
+            # The modules of the packages linked into the binary (not test-only
+            # dependencies of go.mod)
+            modules=$(GOOS=linux GOARCH="${platform#linux/}" go list -deps -f '{{with .Module}}{{.Path}}{{end}}' .)
+            for pkg in $(echo "$modules" | sort -u); do
+              jq -e --arg pkg "$pkg" '.packages | map(.name) | index($pkg)' sbom.json > /dev/null \
                 || { echo "FAIL: SBOM $platform: missing $pkg" >&2; exit 1; }
             done
             echo "ok - SBOM $platform"
