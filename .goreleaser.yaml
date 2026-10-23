@@ -1,6 +1,7 @@
 # GoReleaser config: https://goreleaser.com/customization/
 # Releases are made by .github/workflows/release.yml on push of a v* tag.
 # Local dry run: goreleaser release --snapshot --clean
+# (needs a Docker daemon: ko loads the linux/amd64 image into it)
 version: 2
 
 project_name: openapi-preprocessor
@@ -50,29 +51,32 @@ checksum:
 
 release:
   prerelease: auto
+  # When the images are sent to another registry (reproduce.sh), nothing is
+  # published on GitHub
+  disable: '{{ isEnvSet "KO_DOCKER_REPO" }}'
 
-dockers_v2:
-  - dockerfile: .goreleaser/Dockerfile
-    images:
+kos:
+  - repositories:
       - ghcr.io/dolmen-go/openapi-preprocessor
+    # The image is named exactly as the repository, without the import path
+    bare: true
+    # Our own base (.goreleaser/base.sh): /work, user 65532:65532, nothing else
+    base_image: ghcr.io/dolmen-go/openapi-preprocessor-base@sha256:2356379d13f313f927cc2349d072d7c27b333ab009235cc26d19ee1eb856e1ec
+    platforms:
+      - linux/amd64
+      - linux/arm64
     tags:
       - "{{ .Version }}"
       - "{{ if not .Prerelease }}{{ .Major }}.{{ .Minor }}{{ end }}"
       - "{{ if not .Prerelease }}{{ .Major }}{{ end }}"
       - "{{ if not .Prerelease }}latest{{ end }}"
-    platforms:
-      - linux/amd64
-      - linux/arm64
-    sbom: "true"
-    # Reproducible images: BuildKit uses SOURCE_DATE_EPOCH for the image
-    # creation time and, with rewrite-timestamp, for the files in the layers.
-    # (Not in a top-level env: GoReleaser renders it before loading the git
-    # information, so .CommitTimestamp would be zero there.)
-    build_args:
-      SOURCE_DATE_EPOCH: "{{ .CommitTimestamp }}"
-    # GoReleaser adds --load (snapshot) or --push (release)
-    flags:
-      - "{{ if .IsSnapshot }}--output=type=docker,rewrite-timestamp=true{{ else }}--output=type=image,rewrite-timestamp=true{{ end }}"
+    # Reproducible images: dated at the commit (ko writes this time in the
+    # local time zone: build in UTC, as CI does)
+    creation_time: "{{ .CommitTimestamp }}"
+    ko_data_creation_time: "{{ .CommitTimestamp }}"
+    # One SPDX document per platform and for the index, pushed as
+    # sha256-<digest>.sbom (checked by release.yml)
+    sbom: spdx
     labels:
       org.opencontainers.image.title: "{{ .ProjectName }}"
       org.opencontainers.image.description: Preprocessor for OpenAPI specifications ($ref to external files, $inline, $merge)
@@ -81,9 +85,8 @@ dockers_v2:
       org.opencontainers.image.revision: "{{ .FullCommit }}"
       org.opencontainers.image.created: "{{ .CommitDate }}"
       org.opencontainers.image.licenses: Apache-2.0
-    # For a multi-arch image, GHCR reads these from the index.
-    # Snapshot builds are single-platform (no index): an empty value drops them.
+    # ko sets them on each platform image and on the index
     annotations:
-      "index:org.opencontainers.image.description": "{{ if not .IsSnapshot }}Preprocessor for OpenAPI specifications ($ref to external files, $inline, $merge){{ end }}"
-      "index:org.opencontainers.image.source": "{{ if not .IsSnapshot }}https://github.com/dolmen-go/openapi-preprocessor{{ end }}"
-      "index:org.opencontainers.image.licenses": "{{ if not .IsSnapshot }}Apache-2.0{{ end }}"
+      org.opencontainers.image.description: Preprocessor for OpenAPI specifications ($ref to external files, $inline, $merge)
+      org.opencontainers.image.source: https://github.com/dolmen-go/openapi-preprocessor
+      org.opencontainers.image.licenses: Apache-2.0
